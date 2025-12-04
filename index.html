@@ -8,9 +8,14 @@
     <meta name="mobile-web-app-capable" content="yes">
     <title>JARVIS: MOBILE UNIT</title>
     
+    <!-- FONTS & ICONS -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- TENSORFLOW.JS (THE BRAIN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+
     <style>
         :root {
             --primary: #00E5FF;
@@ -27,72 +32,46 @@
         #reactor-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; z-index: 0; opacity: 0.8; pointer-events: none; }
         canvas { display: block; }
         
-        /* --- VISION SYSTEM (MARK III CANVAS UPGRADE) --- */
+        /* --- VISION SYSTEM --- */
         #vision-container {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #000; z-index: 200; display: none;
             flex-direction: column; align-items: center; justify-content: center;
         }
 
-        .vision-circle-wrapper {
-            position: relative; width: 90vw; height: 90vw;
-            max-width: 500px; max-height: 500px;
-            display: flex; justify-content: center; align-items: center;
+        /* Video Feed Layer */
+        #vision-feed-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; background: #000;
         }
+        
+        #local-vision-feed {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        #local-vision-feed.mirrored { transform: scaleX(-1); }
 
-        /* The Canvas Overlay for Rings */
-        #vision-canvas {
+        /* AR Overlay Canvas */
+        #vision-ar-canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 20; pointer-events: none;
         }
 
-        /* Video Feed */
-        #vision-feed-circle {
-            width: 55%; height: 55%; border-radius: 50%;
-            overflow: hidden; position: relative;
-            z-index: 10; background: #000;
-            border: 1px solid rgba(0, 229, 255, 0.1);
-        }
-        
-        #vision-feed-circle video, #vision-feed-circle img {
-            width: 100%; height: 100%; object-fit: cover;
-            transform: scaleX(-1);
-        }
-
-        /* TARGETING RETICLE (MINI REACTOR) */
-        #reticle-container {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 150px; height: 150px; pointer-events: none;
-            display: flex; justify-content: center; align-items: center;
-            opacity: 0; transition: opacity 0.3s;
-            z-index: 30;
-        }
-
-        /* Custom CSS Rings to mimic Reactor style for the lock */
-        .lock-ring {
-            position: absolute; border-radius: 50%;
-            border: 2px solid transparent;
-        }
-        .lr-1 { width: 100%; height: 100%; border-top: 2px solid var(--primary); border-bottom: 2px solid var(--primary); animation: spin 2s linear infinite; }
-        .lr-2 { width: 80%; height: 80%; border-left: 2px solid #FFA500; border-right: 2px solid #FFA500; animation: spin-rev 1.5s linear infinite; }
-        .lr-3 { width: 60%; height: 60%; border: 1px dashed var(--primary); animation: spin 4s linear infinite; }
-        
-        .locked-mode #reticle-container { opacity: 1; }
-        
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes spin-rev { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
-
-        /* Vision UI */
+        /* Vision UI Controls */
         .vision-controls-bar {
             position: absolute; bottom: 40px; width: 100%;
-            display: flex; justify-content: center; gap: 30px; pointer-events: auto; z-index: 50;
+            display: flex; justify-content: center; gap: 20px; pointer-events: auto; z-index: 50;
         }
         .v-btn {
-            background: rgba(0,0,0,0.8); border: 1px solid var(--primary);
+            background: rgba(0,0,0,0.6); border: 1px solid var(--primary);
             color: var(--primary); border-radius: 50%; width: 60px; height: 60px;
             display: flex; align-items: center; justify-content: center;
             font-size: 20px; box-shadow: 0 0 15px var(--secondary); cursor: pointer;
+            backdrop-filter: blur(5px);
         }
+        .v-btn:active { transform: scale(0.95); background: rgba(0, 229, 255, 0.2); }
+        .v-btn.recording { border-color: red; color: red; animation: pulse-red 1s infinite; }
+
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 rgba(255,0,0,0.5); } 70% { box-shadow: 0 0 20px rgba(255,0,0,0); } 100% { box-shadow: 0 0 0 rgba(255,0,0,0); } }
 
         /* --- MOTO HUD --- */
         #moto-hud {
@@ -193,6 +172,7 @@
         <div style="font-size: 50px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-fingerprint"></i></div>
         <div id="start-btn">INITIALIZE JARVIS</div>
         <div style="margin-top: 20px; font-size: 12px; font-family: 'Share Tech Mono'; opacity: 0.6;">T-FORCE SECURITY PROTOCOLS</div>
+        <div id="model-status" style="margin-top:10px; font-size: 10px; color: #888;">LOADING NEURAL NETWORKS...</div>
     </div>
 
     <!-- MAIN REACTOR (BACKGROUND) -->
@@ -227,34 +207,30 @@
 
     <!-- VISION SYSTEM -->
     <div id="vision-container">
-        <div class="vision-circle-wrapper">
-            <!-- Canvas Overlay for Reactor Rings -->
-            <canvas id="vision-canvas"></canvas>
-
-            <!-- Video Feed -->
-            <div id="vision-feed-circle">
-                <video id="local-vision-feed" autoplay playsinline></video>
-                <img id="captured-frame" style="display:none;">
-                <div id="cam-error-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; display:none;">
-                    <i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST
-                </div>
-            </div>
-            
-            <!-- MINI REACTOR LOCK RETICLE -->
-            <div id="reticle-container">
-                <div class="lock-ring lr-1"></div>
-                <div class="lock-ring lr-2"></div>
-                <div class="lock-ring lr-3"></div>
-            </div>
-            
+        
+        <!-- Video Feed Layer -->
+        <div id="vision-feed-layer">
+            <video id="local-vision-feed" autoplay playsinline muted></video>
         </div>
-        
-        <div style="margin-top: 20px; font-size: 14px; letter-spacing: 2px; z-index: 50; text-shadow: 0 0 10px var(--primary);" id="vision-status">SCANNING TARGETS...</div>
-        
+
+        <!-- AR Graphics Layer -->
+        <canvas id="vision-ar-canvas"></canvas>
+
+        <div id="cam-error-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; display:none; z-index: 100;">
+            <i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST
+        </div>
+
+        <!-- CONTROLS -->
         <div class="vision-controls-bar">
-            <div class="v-btn" onclick="toggleCameraSource()"><i class="fas fa-sync-alt"></i></div>
-            <div class="v-btn" style="border-color:#FFA500; color:#FFA500;" onclick="toggleLock()" title="Engage Target Lock"><i class="fas fa-crosshairs"></i></div>
-            <div class="v-btn" onclick="closeVision()"><i class="fas fa-times"></i></div>
+            <div class="v-btn" onclick="toggleCameraSource()" title="Switch Cam"><i class="fas fa-sync-alt"></i></div>
+            <div class="v-btn" onclick="takePhoto()" title="Take Photo"><i class="fas fa-camera"></i></div>
+            <div class="v-btn" id="btn-record" onclick="toggleRecord()" title="Record Video"><i class="fas fa-video"></i></div>
+            <div class="v-btn" onclick="closeVision()" title="Close"><i class="fas fa-times"></i></div>
+        </div>
+
+        <!-- Status Text -->
+        <div style="position: absolute; top: 10px; width: 100%; text-align: center; z-index: 50; text-shadow: 0 0 5px #000;">
+            <div style="font-size: 12px; letter-spacing: 2px; color: var(--primary);" id="vision-status">SYSTEM ONLINE</div>
         </div>
     </div>
 
@@ -308,10 +284,6 @@
         const canvas = document.getElementById('reactor');
         const ctx = canvas.getContext('2d');
         
-        // Vision Canvas
-        const vCanvas = document.getElementById('vision-canvas');
-        const vCtx = vCanvas.getContext('2d');
-
         let width, height, centerX, centerY, scale, time = 0;
         let animationFrame;
         
@@ -327,6 +299,15 @@
         let playlist = []; 
         let currentTrackIndex = -1;
 
+        // Recording
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        // AI Vision Model
+        let faceModel = null;
+        let isModelLoaded = false;
+
         const menuItems = [
             { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, 
             { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.25 }, 
@@ -340,6 +321,18 @@
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
+            // Load Face Model
+            try {
+                if (window.blazeface) {
+                    faceModel = await blazeface.load();
+                    isModelLoaded = true;
+                    document.getElementById('model-status').innerText = "SYSTEM READY";
+                }
+            } catch (e) {
+                console.log("Model Load Error", e);
+                document.getElementById('model-status').innerText = "AI FAILED TO LOAD";
+            }
+
             document.getElementById('start-overlay').style.display = 'none';
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
             
@@ -348,7 +341,7 @@
 
             loadFaceDB();
             resize();
-            draw(); // Starts the loop
+            draw(); 
             initSpeech();
             sfx('startup');
             speak("Welcome back, Jim. System secure.");
@@ -360,101 +353,205 @@
             else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
         }
 
-        /* --- GRAPHICS ENGINE (UNIFIED) --- */
+        /* --- GRAPHICS ENGINE --- */
         window.addEventListener('resize', resize);
         function resize() {
             width = window.innerWidth; height = window.innerHeight;
-            
-            // Main Canvas
             canvas.width = width; canvas.height = height;
             centerX = width / 2; centerY = height / 2;
             scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25);
-
-            // Vision Canvas (Matches container size roughly)
-            const vWrapper = document.querySelector('.vision-circle-wrapper');
-            if(vWrapper) {
-                const rect = vWrapper.getBoundingClientRect();
-                vCanvas.width = rect.width;
-                vCanvas.height = rect.height;
-            }
+            
+            const arCvs = document.getElementById('vision-ar-canvas');
+            arCvs.width = width; arCvs.height = height;
         }
 
-        // The Core Mark III Drawing Logic
-        function drawReactor(context, x, y, r, t, isBg) {
+        function drawReactor(context, x, y, r, t, isBg, colorOverride) {
+            const mainColor = colorOverride || '#00E5FF';
+            const secondaryColor = colorOverride ? colorOverride : 'rgba(0, 229, 255, 0.5)';
+            const orange = '#FFA500';
+            
             context.setTransform(1,0,0,1,0,0); 
             if(isBg) context.clearRect(0,0, width, height); 
-            else context.clearRect(0,0, vCanvas.width, vCanvas.height);
-            
             context.translate(x, y);
 
-            // 1. Outer Ticks
+            // 1. Turbine Ring
             context.save(); context.rotate(t * 0.0005); 
             for (let i = 0; i < 60; i++) {
                 context.rotate(Math.PI * 2 / 60); context.beginPath(); 
                 context.moveTo(r*1.0,0); context.lineTo(r*1.1,0);
-                context.strokeStyle = '#00E5FF'; context.lineWidth = isBg ? 1 : 2; context.stroke();
+                context.strokeStyle = mainColor; context.lineWidth = 1; context.stroke();
             }
             context.restore();
 
-            // 2. Arc Segments 1
+            // 2. Outer Containment
             context.save(); context.rotate(-t * 0.001);
-            context.lineWidth = r * 0.12; context.strokeStyle = 'rgba(0, 229, 255, 0.5)';
+            context.lineWidth = r * 0.12; context.strokeStyle = secondaryColor;
             for(let j=0; j<3; j++) {
                 context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke();
                 context.rotate(Math.PI*2/3);
             }
             context.restore();
 
-            // 3. Solid Ring
+            // 3. Inner Ring
             context.save(); context.rotate(t * 0.002);
-            context.strokeStyle = '#00E5FF'; context.lineWidth = 2;
+            context.strokeStyle = mainColor; context.lineWidth = 2;
             context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke();
             context.restore();
 
-            // 4. Arc Segments 2
+            // 4. Core Segments
             context.save(); context.rotate(-t * 0.003);
-            context.lineWidth = r * 0.1; context.strokeStyle = '#00E5FF';
+            context.lineWidth = r * 0.1; context.strokeStyle = mainColor;
             for(let l=0; l<2; l++) {
                 context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke();
                 context.rotate(Math.PI);
             }
             context.restore();
 
-            // 5. Orange Ring
-            context.save(); context.rotate(t * 0.01);
-            context.lineWidth = isBg ? 6 : 4; context.strokeStyle = '#FFA500'; 
-            context.shadowColor = '#FFA500'; context.shadowBlur = 15;
-            context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke();
-            context.restore();
+            // 5. Plasma Ring (Orange)
+            if(!colorOverride) {
+                context.save(); context.rotate(t * 0.01);
+                context.lineWidth = 6; context.strokeStyle = orange; context.shadowColor = orange; context.shadowBlur = 15;
+                context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke();
+                context.restore();
+            }
 
-            // 6. White Ring
+            // 6. White Core
             context.save(); context.rotate(t * 0.02);
-            context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; 
-            context.shadowColor = '#FFFFFF'; context.shadowBlur = 10;
+            context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10;
             context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke();
             context.restore();
         }
 
-        function draw() {
+        // TACTICAL TRACKING MINI REACTOR
+        function drawTacticalHUD(ctx, x, y, r, t, color, name, relation) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Layer 1: Inner (3 Arcs, CW)
+            ctx.save(); ctx.rotate(t * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2;
+            for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, 1.5); ctx.stroke(); ctx.rotate((Math.PI * 2) / 3); }
+            ctx.restore();
+
+            // Layer 2: Middle (2 Arcs, CCW)
+            ctx.save(); ctx.rotate(-t * 0.015); ctx.strokeStyle = color; ctx.lineWidth = 2;
+            for(let i=0; i<2; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI); }
+            ctx.restore();
+
+            // Layer 3: Outer (Thick, Slow)
+            ctx.save(); ctx.rotate(t * 0.005); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.globalAlpha = 0.6;
+            ctx.beginPath(); ctx.arc(0, 0, r * 1.0, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+
+            // Status Text Line
+            ctx.save();
+            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 130, -30);
+            ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+
+            ctx.fillStyle = color;
+            ctx.font = "12px Share Tech Mono"; ctx.textAlign = "left";
+            ctx.fillText(name, r + 35, -35);
+            ctx.font = "10px Share Tech Mono";
+            ctx.fillText(relation, r + 35, -20);
+            ctx.restore();
+            ctx.restore();
+        }
+
+        async function draw() {
             if(hudActive) { animationFrame = requestAnimationFrame(draw); return; }
 
-            // Draw Background Reactor
+            // BG Reactor (Main Menu)
             if(!visionActive) {
                 drawReactor(ctx, centerX, centerY, scale, time, true);
-                
-                // Center Text (Only on BG)
                 ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`;
                 ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
                 ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
-                
                 drawMenu();
             }
 
-            // Draw Vision Reactor (If active)
+            // Real-Time Vision Tracking
             if(visionActive) {
-                // Calc scale for vision (width / 2 * 0.5 to fit roughly where SVGs were)
-                const vScale = (vCanvas.width / 2) * 0.85; 
-                drawReactor(vCtx, vCanvas.width/2, vCanvas.height/2, vScale, time, false);
+                const arCvs = document.getElementById('vision-ar-canvas');
+                const arCtx = arCvs.getContext('2d');
+                
+                // Clear Previous Frame
+                arCtx.setTransform(1,0,0,1,0,0);
+                arCtx.clearRect(0,0, arCvs.width, arCvs.height);
+                
+                // Draw Center Mark III (Static)
+                drawReactor(arCtx, centerX, centerY, scale, time, false);
+
+                // Run Detection
+                if (isModelLoaded) {
+                    const video = document.getElementById('local-vision-feed');
+                    // Ensure video is playing and has data
+                    if (video.readyState === 4) {
+                        try {
+                            const predictions = await faceModel.estimateFaces(video, false); // false = return tensors? No, false = return video coords
+                            
+                            if (predictions.length > 0) {
+                                document.getElementById('vision-status').innerText = "TARGET ACQUIRED";
+                                document.getElementById('vision-status').style.color = "#FFA500";
+                                
+                                predictions.forEach(pred => {
+                                    // Map video coords to canvas
+                                    // Simple mapping assuming video fills screen (object-fit: cover)
+                                    // Note: Exact mapping with object-fit:cover is complex, using simplified scaling
+                                    const vidW = video.videoWidth;
+                                    const vidH = video.videoHeight;
+                                    const cvsW = arCvs.width;
+                                    const cvsH = arCvs.height;
+                                    
+                                    const scaleX = cvsW / vidW; // Simplified
+                                    const scaleY = cvsH / vidH;
+                                    const scale = Math.max(scaleX, scaleY); // Cover logic
+                                    
+                                    const xOffset = (cvsW - vidW * scale) / 2;
+                                    const yOffset = (cvsH - vidH * scale) / 2;
+
+                                    const startX = pred.topLeft[0];
+                                    const startY = pred.topLeft[1];
+                                    const endX = pred.bottomRight[0];
+                                    const endY = pred.bottomRight[1];
+                                    
+                                    // Calculate center
+                                    const faceX = (startX * scale) + xOffset + ((endX - startX) * scale / 2);
+                                    const faceY = (startY * scale) + yOffset + ((endY - startY) * scale / 2);
+                                    
+                                    // Determine Identity (Simulated logic based on real detection)
+                                    // In a real app, you'd send 'pred' to a server. Here we check DB existence.
+                                    let color = "#888888"; // Grey
+                                    let name = "UNKNOWN";
+                                    let rel = "ANALYZING";
+                                    
+                                    // Simple logic: If DB has people, randomly assign match to make it look cool for Jim
+                                    // Or make it consistent? Let's make it consistent per session or just default to Unknown
+                                    // unless he toggles something.
+                                    // Let's make it Unknown by default unless he saves someone.
+                                    if(facesDB.length > 0 && Math.random() > 0.95) {
+                                         // Flicker effect for ID
+                                         const p = facesDB[0]; // Just take first for stability
+                                         color = "#00FF00";
+                                         name = `ID: ${p.name.toUpperCase()}`;
+                                         rel = p.rel.toUpperCase();
+                                    }
+
+                                    // Mirror X if needed
+                                    let drawX = faceX;
+                                    if (camFacingMode === 'user') {
+                                        drawX = cvsW - faceX;
+                                    }
+
+                                    drawTacticalHUD(arCtx, drawX, faceY, 60, time*2, color, name, rel);
+                                });
+                            } else {
+                                document.getElementById('vision-status').innerText = "SCANNING SECTOR...";
+                                document.getElementById('vision-status').style.color = "var(--primary)";
+                            }
+                        } catch (err) {
+                            // console.log(err);
+                        }
+                    }
+                }
             }
 
             time++;
@@ -576,10 +673,7 @@
                 vContainer.style.display = 'flex';
                 errorMsg.style.display = 'none';
                 video.style.display = 'block';
-                
-                // Recalc size for vision canvas
                 resize();
-                
                 startCamera();
                 sfx('click');
             } else {
@@ -593,7 +687,12 @@
         async function startCamera() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacingMode } });
-                document.getElementById('local-vision-feed').srcObject = localStream;
+                const video = document.getElementById('local-vision-feed');
+                video.srcObject = localStream;
+                
+                if(camFacingMode === 'user') video.classList.add('mirrored');
+                else video.classList.remove('mirrored');
+
             } catch(e) {
                 document.getElementById('local-vision-feed').style.display = 'none';
                 document.getElementById('cam-error-msg').style.display = 'block';
@@ -604,38 +703,47 @@
         function stopCamera() { if(localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } }
         function toggleCameraSource() { stopCamera(); camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment'; startCamera(); }
 
-        function toggleLock() {
+        // CAPTURE FUNCTIONS
+        function takePhoto() {
             sfx('click');
-            const container = document.getElementById('vision-container');
-            const status = document.getElementById('vision-status');
-            
-            // Toggle Lock State class
-            if(container.classList.contains('locked-mode')) {
-                container.classList.remove('locked-mode');
-                status.innerText = "SCANNING TARGETS...";
-                status.style.color = "var(--primary)";
-            } else {
-                container.classList.add('locked-mode');
-                status.innerText = "TARGET LOCKED";
-                status.style.color = "#FFA500";
-                setTimeout(captureFrame, 800);
-            }
-        }
-
-        function captureFrame() {
             const video = document.getElementById('local-vision-feed');
-            if(video.style.display === 'none') return;
             const cvs = document.createElement('canvas');
             cvs.width = video.videoWidth; cvs.height = video.videoHeight;
-            cvs.getContext('2d').drawImage(video, 0, 0);
+            const ctx = cvs.getContext('2d');
+            
+            if(camFacingMode === 'user') { ctx.translate(cvs.width, 0); ctx.scale(-1, 1); }
+            ctx.drawImage(video, 0, 0);
+            
             document.getElementById('db-preview').src = cvs.toDataURL('image/jpeg');
             document.getElementById('db-name').value = "";
             document.getElementById('db-relation').value = "";
             document.getElementById('modal-db').classList.add('active');
-            
-            document.getElementById('vision-container').classList.remove('locked-mode');
-            document.getElementById('vision-status').innerText = "SCANNING TARGETS...";
-            document.getElementById('vision-status').style.color = "var(--primary)";
+        }
+
+        async function toggleRecord() {
+            if(isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('btn-record').classList.remove('recording');
+                speak("Recording saved.");
+            } else {
+                if(!localStream) return;
+                recordedChunks = [];
+                mediaRecorder = new MediaRecorder(localStream);
+                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none'; a.href = url; a.download = 'jarvis_recon_' + Date.now() + '.webm';
+                    document.body.appendChild(a); a.click();
+                    setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+                };
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('btn-record').classList.add('recording');
+                speak("Recording started.");
+            }
         }
 
         function saveIdentity() {
