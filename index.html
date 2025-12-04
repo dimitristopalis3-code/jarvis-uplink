@@ -5,8 +5,15 @@
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
+    
+    <!-- PWA MANIFEST LINK -->
+    <link rel="manifest" href="manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>JARVIS: MOBILE UNIT</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://i.imgur.com/8x8q9qE.png"> <!-- Placeholder Icon -->
+    
+    <title>JARVIS</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,877 +24,272 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
 
     <style>
-        :root {
-            --primary: #00E5FF;
-            --secondary: rgba(0, 229, 255, 0.2);
-            --bg-color: #000000;
-            --safe-top: env(safe-area-inset-top);
-            --safe-bottom: env(safe-area-inset-bottom);
-        }
-
+        :root { --primary: #00E5FF; --secondary: rgba(0, 229, 255, 0.2); --bg-color: #000000; --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
         * { -webkit-tap-highlight-color: transparent; user-select: none; box-sizing: border-box; outline: none; }
         html, body { margin: 0; padding: 0; overflow: hidden; background-color: var(--bg-color); font-family: 'Orbitron', sans-serif; color: var(--primary); height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; touch-action: none; overscroll-behavior: none; }
         
-        /* BACKGROUND */
         #reactor-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; z-index: 0; opacity: 0.8; pointer-events: none; }
         canvas { display: block; }
         
-        /* --- VISION SYSTEM --- */
-        #vision-container {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #000; z-index: 200; display: none;
-            flex-direction: column; align-items: center; justify-content: center;
-        }
-
-        #vision-feed-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; background: #000;
-        }
-        
+        #vision-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #vision-feed-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; background: #000; }
         #local-vision-feed { width: 100%; height: 100%; object-fit: cover; }
         #local-vision-feed.mirrored { transform: scaleX(-1); }
+        #vision-ar-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+        .hud-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 250px; height: 250px; pointer-events: none; z-index: 15; display: flex; justify-content: center; align-items: center; }
+        .hud-ring-inner { position: absolute; width: 60%; height: 60%; border: 2px dashed var(--primary); border-radius: 50%; box-shadow: 0 0 10px var(--secondary); animation: hud-spin-cw 10s linear infinite; }
+        .hud-ring-outer { position: absolute; width: 100%; height: 100%; border: 3px solid var(--primary); border-radius: 50%; border-left-color: transparent; border-right-color: transparent; box-shadow: 0 0 15px var(--secondary); animation: hud-spin-ccw 12s linear infinite; }
+        .hud-crosshair-v { position: absolute; width: 1px; height: 30%; background: var(--primary); opacity: 0.7; }
+        .hud-crosshair-h { position: absolute; width: 30%; height: 1px; background: var(--primary); opacity: 0.7; }
+        @keyframes hud-spin-cw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes hud-spin-ccw { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
 
-        #vision-ar-canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 20; pointer-events: none;
-        }
-
-        .vision-controls-bar {
-            position: absolute; bottom: 40px; width: 100%;
-            display: flex; justify-content: center; gap: 20px; pointer-events: auto; z-index: 50;
-        }
-        .v-btn {
-            background: rgba(0,0,0,0.6); border: 1px solid var(--primary);
-            color: var(--primary); border-radius: 50%; width: 60px; height: 60px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 20px; box-shadow: 0 0 15px var(--secondary); cursor: pointer;
-            backdrop-filter: blur(5px);
-        }
+        .vision-controls-bar { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: center; gap: 20px; pointer-events: auto; z-index: 50; }
+        .v-btn { background: rgba(0,0,0,0.6); border: 1px solid var(--primary); color: var(--primary); border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 0 15px var(--secondary); cursor: pointer; backdrop-filter: blur(5px); }
         .v-btn:active { transform: scale(0.95); background: rgba(0, 229, 255, 0.2); }
         .v-btn.recording { border-color: red; color: red; animation: pulse-red 1s infinite; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 rgba(255,0,0,0.5); } 50% { box-shadow: 0 0 20px rgba(255,0,0,0); } 100% { box-shadow: 0 0 0 rgba(255,0,0,0); } }
 
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 rgba(255,0,0,0.5); } 70% { box-shadow: 0 0 20px rgba(255,0,0,0); } 100% { box-shadow: 0 0 0 rgba(255,0,0,0); } }
-
-        /* --- MOTO HUD --- */
-        #moto-hud {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #000; z-index: 300; display: none; flex-direction: column;
-            color: var(--primary); font-family: 'Share Tech Mono', monospace;
-            padding-top: max(10px, var(--safe-top));
-            padding-bottom: max(10px, var(--safe-bottom));
-        }
-        .hud-top {
-            height: 60px; border-bottom: 2px solid var(--primary);
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden; position: relative; background: rgba(0, 229, 255, 0.05); flex-shrink: 0;
-        }
+        #moto-hud { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 300; display: none; flex-direction: column; color: var(--primary); font-family: 'Share Tech Mono', monospace; padding-top: max(10px, var(--safe-top)); padding-bottom: max(10px, var(--safe-bottom)); }
+        .hud-top { height: 60px; border-bottom: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; background: rgba(0, 229, 255, 0.05); flex-shrink: 0; }
         .compass-tape { display: flex; gap: 60px; font-size: 22px; font-weight: bold; transition: transform 0.1s linear; color: var(--primary); will-change: transform; }
         .compass-marker { position: absolute; bottom: 0; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 12px solid var(--primary); z-index: 5; }
         .hud-mid { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        .horizon-line {
-            position: absolute; width: 150vw; height: 2px;
-            background: var(--primary); box-shadow: 0 0 10px var(--primary);
-            top: 50%; left: 50%; margin-left: -75vw; transition: transform 0.1s linear;
-        }
-        .horizon-line::after {
-            content: ''; position: absolute; top: -100px; left: 0; width: 100%; height: 200px;
-            background: repeating-linear-gradient(transparent, transparent 49px, rgba(0,229,255,0.2) 50px); pointer-events: none;
-        }
-        .hud-crosshair {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 200px; height: 60px; z-index: 10; display: flex; justify-content: center; align-items: center;
-        }
+        .horizon-line { position: absolute; width: 150vw; height: 2px; background: var(--primary); box-shadow: 0 0 10px var(--primary); top: 50%; left: 50%; margin-left: -75vw; transition: transform 0.1s linear; }
+        .horizon-line::after { content: ''; position: absolute; top: -100px; left: 0; width: 100%; height: 200px; background: repeating-linear-gradient(transparent, transparent 49px, rgba(0,229,255,0.2) 50px); pointer-events: none; }
+        .hud-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 60px; z-index: 10; display: flex; justify-content: center; align-items: center; }
         .wing-left, .wing-right { width: 60px; height: 4px; background: var(--primary); border: 1px solid #000; }
         .wing-center { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); margin: 0 5px; }
         .speed-overlay { position: absolute; top: 15%; width: 100%; text-align: center; text-shadow: 0 0 10px #000; z-index: 20; }
         .speed-val { font-size: 100px; font-weight: 900; font-family: 'Orbitron'; color: #fff; text-shadow: 0 0 20px var(--primary); line-height: 1; }
         .speed-unit { font-size: 18px; letter-spacing: 5px; color: var(--primary); font-weight: bold; }
-        .hud-bot {
-            height: 80px; display: flex; justify-content: space-between; align-items: center;
-            padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9); flex-shrink: 0;
-        }
-        .hud-btn {
-            background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary);
-            color: var(--primary); width: 60px; height: 60px; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; font-size: 24px;
-        }
+        .hud-bot { height: 80px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9); flex-shrink: 0; }
+        .hud-btn { background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); width: 60px; height: 60px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
         .hud-time { font-size: 32px; font-weight: bold; color: #fff; }
 
-        /* GENERAL UI */
         #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         #start-btn { padding: 20px 40px; border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-size: 18px; font-weight: 900; animation: pulse 2s infinite; cursor: pointer; }
         @keyframes pulse { 0% { box-shadow: 0 0 10px var(--secondary); } 50% { box-shadow: 0 0 25px var(--primary); border-color: #fff; } 100% { box-shadow: 0 0 10px var(--secondary); } }
 
-        /* MODALS */
-        .modal-window { 
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(5, 8, 12, 0.98); backdrop-filter: blur(10px); z-index: 100; 
-            display: flex; flex-direction: column; transform: translateY(110%);
-            transition: transform 0.4s ease; padding-top: var(--safe-top);
-        }
+        .modal-window { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 8, 12, 0.98); backdrop-filter: blur(10px); z-index: 100; display: flex; flex-direction: column; transform: translateY(110%); transition: transform 0.4s ease; padding-top: var(--safe-top); }
         .modal-window.active { transform: translateY(0); }
         .modal-header { padding: 20px; border-bottom: 1px solid var(--secondary); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;}
         .modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 15px; }
-
-        /* DB & MEDIA */
         .db-entry { border: 1px solid var(--secondary); padding: 10px; border-radius: 5px; display: flex; gap: 10px; align-items: center; }
         .db-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 1px solid var(--primary); }
         input { background: #111; border: 1px solid #333; color: var(--primary); padding: 15px; width: 100%; font-family: 'Share Tech Mono'; margin-bottom: 10px; }
         .text-btn { padding: 15px; background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-weight: bold; width: 100%; }
         .text-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* PLAYLIST STYLES */
-        #playlist-container {
-            flex: 1; overflow-y: auto; margin-top: 10px; border-top: 1px solid rgba(0,229,255,0.3);
-            scrollbar-width: thin; scrollbar-color: var(--primary) transparent;
-        }
-        #playlist-container::-webkit-scrollbar { width: 5px; }
-        #playlist-container::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 2px; }
-        .track-item {
-            padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
-            font-family: 'Share Tech Mono'; font-size: 14px; color: #888; transition: all 0.2s;
-            display: flex; align-items: center; gap: 10px;
-        }
+        #playlist-container { flex: 1; overflow-y: auto; margin-top: 10px; border-top: 1px solid rgba(0,229,255,0.3); scrollbar-width: thin; scrollbar-color: var(--primary) transparent; }
+        .track-item { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-family: 'Share Tech Mono'; font-size: 14px; color: #888; transition: all 0.2s; display: flex; align-items: center; gap: 10px; }
         .track-item:hover { background: rgba(0, 229, 255, 0.05); color: #ccc; }
         .track-item.active-track { color: var(--primary); background: rgba(0, 229, 255, 0.1); border-left: 3px solid var(--primary); }
-        .track-icon { width: 20px; text-align: center; }
-
     </style>
 </head>
 <body>
-
-    <!-- STARTUP -->
     <div id="start-overlay" onclick="initSystem()">
         <div style="font-size: 50px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-fingerprint"></i></div>
         <div id="start-btn">INITIALIZE JARVIS</div>
         <div style="margin-top: 20px; font-size: 12px; font-family: 'Share Tech Mono'; opacity: 0.6;">T-FORCE SECURITY PROTOCOLS</div>
         <div id="model-status" style="margin-top:20px; font-size: 12px; color: #FFA500;">LOADING NEURAL NETWORKS...</div>
     </div>
-
-    <!-- MAIN REACTOR (BACKGROUND) -->
     <div id="reactor-container"><canvas id="reactor"></canvas></div>
-
-    <!-- MOTO HUD -->
     <div id="moto-hud">
         <div class="hud-top">
-            <div class="compass-marker"></div>
-            <div class="compass-tape" id="hud-compass">
-                <span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SW</span><span>W</span><span>NW</span><span>N</span><span>NE</span><span>E</span>
-            </div>
+            <div class="compass-marker"></div><div class="compass-tape" id="hud-compass"><span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SW</span><span>W</span><span>NW</span><span>N</span><span>NE</span><span>E</span></div>
         </div>
-        
         <div class="hud-mid">
-            <div class="speed-overlay">
-                <div class="speed-val" id="hud-speed">0</div>
-                <div class="speed-unit">KM/H <span id="gps-status" style="font-size:10px; opacity:0.5;">(GPS)</span></div>
-            </div>
+            <div class="speed-overlay"><div class="speed-val" id="hud-speed">0</div><div class="speed-unit">KM/H <span id="gps-status" style="font-size:10px; opacity:0.5;">(GPS)</span></div></div>
             <div class="horizon-line" id="horizon-line"></div>
-            <div class="hud-crosshair">
-                <div class="wing-left"></div><div class="wing-center"></div><div class="wing-right"></div>
-            </div>
+            <div class="hud-crosshair"><div class="wing-left"></div><div class="wing-center"></div><div class="wing-right"></div></div>
         </div>
-        
         <div class="hud-bot">
-            <div class="hud-btn" onclick="closeHUD()"><i class="fas fa-home"></i></div>
-            <div class="hud-time" id="hud-clock">00:00</div>
-            <div class="hud-btn" onclick="launchMaps()"><i class="fas fa-location-arrow"></i></div>
+            <div class="hud-btn" onclick="closeHUD()"><i class="fas fa-home"></i></div><div class="hud-time" id="hud-clock">00:00</div><div class="hud-btn" onclick="launchMaps()"><i class="fas fa-location-arrow"></i></div>
         </div>
     </div>
-
-    <!-- VISION SYSTEM -->
     <div id="vision-container">
-        <!-- Video Feed Layer -->
-        <div id="vision-feed-layer">
-            <video id="local-vision-feed" autoplay playsinline muted></video>
+        <div id="vision-feed-layer"><video id="local-vision-feed" autoplay playsinline muted></video></div>
+        <div class="hud-overlay">
+            <div class="hud-ring-outer"></div><div class="hud-ring-inner"></div><div class="hud-crosshair-v"></div><div class="hud-crosshair-h"></div>
         </div>
-        <!-- AR Graphics Layer -->
         <canvas id="vision-ar-canvas"></canvas>
-        
-        <div id="cam-error-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; display:none; z-index: 100;">
-            <i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST
-        </div>
-
-        <!-- CONTROLS -->
+        <div id="cam-error-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; display:none; z-index: 100;"><i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST</div>
         <div class="vision-controls-bar">
             <div class="v-btn" onclick="toggleCameraSource()" title="Switch Cam"><i class="fas fa-sync-alt"></i></div>
             <div class="v-btn" onclick="takePhoto()" title="Take Photo"><i class="fas fa-camera"></i></div>
             <div class="v-btn" id="btn-record" onclick="toggleRecord()" title="Record Video"><i class="fas fa-video"></i></div>
             <div class="v-btn" onclick="closeVision()" title="Close"><i class="fas fa-times"></i></div>
         </div>
-
-        <!-- Status Text -->
-        <div style="position: absolute; top: 10px; width: 100%; text-align: center; z-index: 50; text-shadow: 0 0 5px #000;">
-            <div style="font-size: 14px; letter-spacing: 2px; color: var(--primary);" id="vision-status">SYSTEM ONLINE</div>
-        </div>
+        <div style="position: absolute; top: 10px; width: 100%; text-align: center; z-index: 50; text-shadow: 0 0 5px #000;"><div style="font-size: 14px; letter-spacing: 2px; color: var(--primary);" id="vision-status">SYSTEM ONLINE</div></div>
     </div>
-
-    <!-- MODAL: FACE DB -->
     <div id="modal-db" class="modal-window">
         <div class="modal-header"><span>IDENTITY DATABASE</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-db')"></i></div>
         <div class="modal-body">
-            <div style="text-align: center;">
-                <img id="db-preview" style="width:120px; height:120px; border-radius:50%; border:2px solid var(--primary); object-fit:cover;">
-            </div>
-            <input type="text" id="db-name" placeholder="FULL NAME">
-            <input type="text" id="db-relation" placeholder="RELATION (e.g. Wife)">
+            <div style="text-align: center;"><img id="db-preview" style="width:120px; height:120px; border-radius:50%; border:2px solid var(--primary); object-fit:cover;"></div>
+            <input type="text" id="db-name" placeholder="FULL NAME"><input type="text" id="db-relation" placeholder="RELATION (e.g. Wife)">
             <div id="signature-status" style="font-size:10px; color:#FFA500; margin-bottom:10px; text-align:center;">TAKE PHOTO TO EXTRACT SIGNATURE</div>
             <button class="text-btn" id="btn-save-id" onclick="saveIdentity()" disabled>SAVE IDENTITY</button>
-            <div style="border-top:1px solid #333; margin-top:20px; padding-top:10px; font-size:12px;">KNOWN ASSOCIATES:</div>
-            <div id="db-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+            <div style="border-top:1px solid #333; margin-top:20px; padding-top:10px; font-size:12px;">KNOWN ASSOCIATES:</div><div id="db-list" style="display:flex; flex-direction:column; gap:10px;"></div>
             <button class="text-btn" style="margin-top:20px; background:rgba(255,0,0,0.2); border-color:red; color:red;" onclick="clearDB()">WIPE DATABASE</button>
         </div>
     </div>
-
-    <!-- MODAL: SETTINGS -->
     <div id="modal-settings" class="modal-window">
         <div class="modal-header"><span>CONFIG</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-settings')"></i></div>
         <div class="modal-body">
-            <div style="font-size: 12px; color: #888;">GEMINI API KEY</div>
-            <input type="password" id="api-key-input" onchange="saveApiKey(this.value)">
-            <button class="text-btn" onclick="openModal('modal-db')">MANAGE DATABASE</button>
-            <button class="text-btn" onclick="requestFullScreen()">FORCE FULLSCREEN</button>
+            <div style="font-size: 12px; color: #888;">GEMINI API KEY</div><input type="password" id="api-key-input" onchange="saveApiKey(this.value)">
+            <button class="text-btn" onclick="openModal('modal-db')">MANAGE DATABASE</button><button class="text-btn" onclick="requestFullScreen()">FORCE FULLSCREEN</button>
         </div>
     </div>
-
-    <!-- MODAL: MEDIA -->
     <div id="modal-media" class="modal-window">
         <div class="modal-header"><span>MEDIA LINK</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-media')"></i></div>
         <div class="modal-body">
             <input type="file" id="media-upload" accept="audio/*" multiple onchange="handleMediaSelect(this)" style="display:none;">
-            <button class="text-btn" onclick="document.getElementById('media-upload').click()">
-                <i class="fas fa-plus"></i> ADD AUDIO FILES
-            </button>
+            <button class="text-btn" onclick="document.getElementById('media-upload').click()"><i class="fas fa-plus"></i> ADD AUDIO FILES</button>
             <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid rgba(0,229,255,0.2);">
                 <div id="now-playing" style="color: var(--primary); font-size: 12px; margin-bottom: 5px; text-align: center;">NO MEDIA</div>
                 <audio id="audio-player" controls style="width:100%; height: 30px; filter: invert(1) hue-rotate(180deg);"></audio>
             </div>
-            <div style="font-size: 10px; color: #888; margin-top: 10px;">PLAYLIST</div>
-            <div id="playlist-container">
-                <div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>
-            </div>
+            <div style="font-size: 10px; color: #888; margin-top: 10px;">PLAYLIST</div><div id="playlist-container"><div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div></div>
         </div>
     </div>
-
     <script>
-        /* --- SYSTEM CORE --- */
-        const canvas = document.getElementById('reactor');
-        const ctx = canvas.getContext('2d');
-        
-        let width, height, centerX, centerY, scale, time = 0;
-        let animationFrame;
-        
+        const canvas = document.getElementById('reactor'); const ctx = canvas.getContext('2d');
+        let width, height, centerX, centerY, scale, time = 0; let animationFrame;
         let systemConfig = { apiKey: localStorage.getItem('jarvis_api_key') || '' };
         let facesDB = JSON.parse(localStorage.getItem('jarvis_faces') || '[]');
-        
-        let visionActive = false;
-        let hudActive = false;
-        let localStream = null;
-        let audioCtx, recognition;
-        let watchId = null;
-        let camFacingMode = 'environment';
-        let playlist = []; 
-        let currentTrackIndex = -1;
+        let visionActive = false, hudActive = false, localStream = null, audioCtx, recognition, watchId = null, camFacingMode = 'environment', playlist = [], currentTrackIndex = -1;
+        let mediaRecorder, recordedChunks = [], isRecording = false;
+        let faceModel = null, recogModel = null, isModelLoaded = false, pendingEmbedding = null;
+        let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
+        let isAnalyzing = false;
+        const menuItems = [{ id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.25 }, { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: Math.PI * 0.25 }, { id: 'hud', label: 'HUD', icon: 'fa-motorcycle', target: 'hud-launch', angle: Math.PI * 0.75 }];
 
-        // Recording
-        let mediaRecorder;
-        let recordedChunks = [];
-        let isRecording = false;
-
-        // AI Models
-        let faceModel = null;
-        let recogModel = null;
-        let isModelLoaded = false;
-        let pendingEmbedding = null;
-        
-        // --- TACTICAL TRACKING STATE (The "Hysteresis" Logic) ---
-        let lockedTarget = {
-            active: false,
-            x: 0, y: 0,
-            identity: null,
-            lastSeen: 0,
-            color: "#888888"
-        };
-
-        const menuItems = [
-            { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, 
-            { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.25 }, 
-            { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: Math.PI * 0.25 },
-            { id: 'hud', label: 'HUD', icon: 'fa-motorcycle', target: 'hud-launch', angle: Math.PI * 0.75 }
-        ];
-
-        /* --- INIT --- */
         async function initSystem() {
             if ('wakeLock' in navigator) try { await navigator.wakeLock.request('screen'); } catch (e) {}
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            // Load Neural Networks
-            try {
-                faceModel = await blazeface.load();
-                recogModel = await mobilenet.load();
-                isModelLoaded = true;
-                document.getElementById('model-status').innerText = "SYSTEM READY";
-                document.getElementById('model-status').style.color = "#00E5FF";
-                setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 1000);
-            } catch (e) {
-                console.error(e);
-                document.getElementById('model-status').innerText = "AI FAILED. CHECK NETWORK.";
-                document.getElementById('model-status').style.color = "red";
-                setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 3000);
-            }
-
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
+            try { faceModel = await blazeface.load(); recogModel = await mobilenet.load(); isModelLoaded = true; document.getElementById('model-status').innerText = "SYSTEM READY"; document.getElementById('model-status').style.color = "#00E5FF"; setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 1000); } 
+            catch (e) { document.getElementById('model-status').innerText = "AI FAILED. CHECK NETWORK."; document.getElementById('model-status').style.color = "red"; setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 3000); }
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
-            const player = document.getElementById('audio-player');
-            player.onended = playNextTrack;
-
-            loadFaceDB();
-            resize();
-            draw(); 
-            initSpeech();
-            sfx('startup');
-            speak("Welcome back, Jim. System secure.");
+            document.getElementById('audio-player').onended = playNextTrack;
+            loadFaceDB(); resize(); draw(); initSpeech(); sfx('startup'); speak("Welcome back, Jim. System secure.");
+            // Register SW for PWA
+            if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').then(() => console.log('SW Registered')); }
         }
-
-        function requestFullScreen() {
-            const doc = document.documentElement;
-            if (doc.requestFullscreen) doc.requestFullscreen();
-            else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
-        }
-
-        /* --- GRAPHICS ENGINE --- */
+        function requestFullScreen() { const doc = document.documentElement; if (doc.requestFullscreen) doc.requestFullscreen(); else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen(); }
         window.addEventListener('resize', resize);
-        function resize() {
-            width = window.innerWidth; height = window.innerHeight;
-            canvas.width = width; canvas.height = height;
-            centerX = width / 2; centerY = height / 2;
-            scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25);
-            const arCvs = document.getElementById('vision-ar-canvas');
-            arCvs.width = width; arCvs.height = height;
-        }
-
-        // SMOOTHING FUNCTION (LERP)
-        function lerp(start, end, amt) {
-            return (1 - amt) * start + amt * end;
-        }
-
+        function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; centerX = width / 2; centerY = height / 2; scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25); const arCvs = document.getElementById('vision-ar-canvas'); arCvs.width = width; arCvs.height = height; }
+        function lerp(start, end, amt) { return (1 - amt) * start + amt * end; }
         function drawReactor(context, x, y, r, t, isBg, colorOverride) {
-            const mainColor = colorOverride || '#00E5FF';
-            const secondaryColor = colorOverride ? colorOverride : 'rgba(0, 229, 255, 0.5)';
-            const orange = '#FFA500';
-            
-            context.setTransform(1,0,0,1,0,0); 
-            if(isBg) context.clearRect(0,0, width, height); 
-            context.translate(x, y);
-
-            context.save(); context.rotate(t * 0.0005); 
-            for (let i = 0; i < 60; i++) { context.rotate(Math.PI * 2 / 60); context.beginPath(); context.moveTo(r*1.0,0); context.lineTo(r*1.1,0); context.strokeStyle = mainColor; context.lineWidth = 1; context.stroke(); }
-            context.restore();
-
-            context.save(); context.rotate(-t * 0.001); context.lineWidth = r * 0.12; context.strokeStyle = secondaryColor;
-            for(let j=0; j<3; j++) { context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke(); context.rotate(Math.PI*2/3); }
-            context.restore();
-
+            const mainColor = colorOverride || '#00E5FF'; const secondaryColor = colorOverride ? colorOverride : 'rgba(0, 229, 255, 0.5)'; const orange = '#FFA500';
+            context.setTransform(1,0,0,1,0,0); if(isBg) context.clearRect(0,0, width, height); context.translate(x, y);
+            context.save(); context.rotate(t * 0.0005); for (let i = 0; i < 60; i++) { context.rotate(Math.PI * 2 / 60); context.beginPath(); context.moveTo(r*1.0,0); context.lineTo(r*1.1,0); context.strokeStyle = mainColor; context.lineWidth = 1; context.stroke(); } context.restore();
+            context.save(); context.rotate(-t * 0.001); context.lineWidth = r * 0.12; context.strokeStyle = secondaryColor; for(let j=0; j<3; j++) { context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke(); context.rotate(Math.PI*2/3); } context.restore();
             context.save(); context.rotate(t * 0.002); context.strokeStyle = mainColor; context.lineWidth = 2; context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke(); context.restore();
-
-            context.save(); context.rotate(-t * 0.003); context.lineWidth = r * 0.1; context.strokeStyle = mainColor;
-            for(let l=0; l<2; l++) { context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); context.rotate(Math.PI); }
-            context.restore();
-
-            if(!colorOverride) {
-                context.save(); context.rotate(t * 0.01); context.lineWidth = 6; context.strokeStyle = orange; context.shadowColor = orange; context.shadowBlur = 15; context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke(); context.restore();
-            }
-
+            context.save(); context.rotate(-t * 0.003); context.lineWidth = r * 0.1; context.strokeStyle = mainColor; for(let l=0; l<2; l++) { context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); context.rotate(Math.PI); } context.restore();
+            if(!colorOverride) { context.save(); context.rotate(t * 0.01); context.lineWidth = 6; context.strokeStyle = orange; context.shadowColor = orange; context.shadowBlur = 15; context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke(); context.restore(); }
             context.save(); context.rotate(t * 0.02); context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10; context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke(); context.restore();
         }
-
-        // TACTICAL TRACKING MINI REACTOR
         function drawTacticalHUD(ctx, x, y, r, t, color, name, relation) {
-            ctx.save();
-            ctx.translate(x, y);
-
-            ctx.save(); ctx.rotate(t * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2;
-            for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, 1.5); ctx.stroke(); ctx.rotate((Math.PI * 2) / 3); }
-            ctx.restore();
-
-            ctx.save(); ctx.rotate(-t * 0.015); ctx.strokeStyle = color; ctx.lineWidth = 2;
-            for(let i=0; i<2; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI); }
-            ctx.restore();
-
-            ctx.save(); ctx.rotate(t * 0.005); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.globalAlpha = 0.6;
-            ctx.beginPath(); ctx.arc(0, 0, r * 1.0, 0, Math.PI*2); ctx.stroke();
-            ctx.restore();
-
-            ctx.save();
-            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 150, -30);
-            ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
-
-            ctx.fillStyle = color;
-            ctx.font = "14px Share Tech Mono"; ctx.textAlign = "left";
-            ctx.shadowColor = color; ctx.shadowBlur = 5;
-            ctx.fillText(name, r + 35, -35);
-            ctx.font = "12px Share Tech Mono";
-            ctx.fillText(relation, r + 35, -15);
-            ctx.restore();
-            ctx.restore();
+            ctx.save(); ctx.translate(x, y);
+            ctx.save(); ctx.rotate(t * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2; for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, 1.5); ctx.stroke(); ctx.rotate((Math.PI * 2) / 3); } ctx.restore();
+            ctx.save(); ctx.rotate(-t * 0.015); ctx.strokeStyle = color; ctx.lineWidth = 2; for(let i=0; i<2; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI); } ctx.restore();
+            ctx.save(); ctx.rotate(t * 0.005); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(0, 0, r * 1.0, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+            ctx.save(); ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 150, -30); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+            ctx.fillStyle = color; ctx.font = "14px Share Tech Mono"; ctx.textAlign = "left"; ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.fillText(name, r + 35, -35); ctx.font = "12px Share Tech Mono"; ctx.fillText(relation, r + 35, -15); ctx.restore(); ctx.restore();
         }
-
         async function draw() {
             if(hudActive) { animationFrame = requestAnimationFrame(draw); return; }
-
-            // BG Reactor
-            if(!visionActive) {
-                drawReactor(ctx, centerX, centerY, scale, time, true);
-                ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`;
-                ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
-                ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
-                drawMenu();
-            }
-
-            // Real-Time Vision Tracking
+            if(!visionActive) { drawReactor(ctx, centerX, centerY, scale, time, true); ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0); drawMenu(); }
             if(visionActive) {
-                const arCvs = document.getElementById('vision-ar-canvas');
-                const arCtx = arCvs.getContext('2d');
-                
-                arCtx.setTransform(1,0,0,1,0,0);
-                arCtx.clearRect(0,0, arCvs.width, arCvs.height);
-                
-                // Static Center Reactor
-                drawReactor(arCtx, centerX, centerY, scale, time, false);
-
+                const arCvs = document.getElementById('vision-ar-canvas'); const arCtx = arCvs.getContext('2d');
+                arCtx.setTransform(1,0,0,1,0,0); arCtx.clearRect(0,0, arCvs.width, arCvs.height);
                 if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
                     const video = document.getElementById('local-vision-feed');
-                    
                     try {
                         const predictions = await faceModel.estimateFaces(video, false);
-                        
                         if (predictions.length > 0) {
-                            // Target Found
-                            const pred = predictions[0]; // Focus on primary face
-                            
-                            // Calc Center
-                            const vidW = video.videoWidth; const vidH = video.videoHeight;
-                            const cvsW = arCvs.width; const cvsH = arCvs.height;
-                            const scaleFit = Math.max(cvsW / vidW, cvsH / vidH);
-                            const xOff = (cvsW - vidW * scaleFit) / 2;
-                            const yOff = (cvsH - vidH * scaleFit) / 2;
-
-                            const startX = pred.topLeft[0]; const startY = pred.topLeft[1];
-                            const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
-                            const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2);
-                            const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
-                            
-                            let targetX = faceX;
-                            if (camFacingMode === 'user') targetX = cvsW - faceX;
-
-                            // LERP Movement (Smoothness)
-                            if (!lockedTarget.active) {
-                                lockedTarget.x = targetX;
-                                lockedTarget.y = faceY;
-                                lockedTarget.active = true;
-                                lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" };
-                                // Trigger Analysis ONCE upon locking
-                                analyzeFace(video, pred);
-                            } else {
-                                lockedTarget.x = lerp(lockedTarget.x, targetX, 0.2); // Smooth Glide
-                                lockedTarget.y = lerp(lockedTarget.y, faceY, 0.2);
-                            }
-                            
-                            lockedTarget.lastSeen = time; // Refresh timer
-
+                            const pred = predictions[0];
+                            const vidW = video.videoWidth; const vidH = video.videoHeight; const cvsW = arCvs.width; const cvsH = arCvs.height;
+                            const scaleFit = Math.max(cvsW / vidW, cvsH / vidH); const xOff = (cvsW - vidW * scaleFit) / 2; const yOff = (cvsH - vidH * scaleFit) / 2;
+                            const startX = pred.topLeft[0]; const startY = pred.topLeft[1]; const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
+                            const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2); const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
+                            let targetX = faceX; if (camFacingMode === 'user') targetX = cvsW - faceX;
+                            if (!lockedTarget.active) { lockedTarget.x = targetX; lockedTarget.y = faceY; lockedTarget.active = true; lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" }; analyzeFace(video, pred); } 
+                            else { lockedTarget.x = lerp(lockedTarget.x, targetX, 0.2); lockedTarget.y = lerp(lockedTarget.y, faceY, 0.2); }
+                            lockedTarget.lastSeen = time;
                         } else {
-                            // No Face Visible
-                            // Keep lock for 60 frames (approx 1-2 sec) before resetting
-                            if (time - lockedTarget.lastSeen > 60) {
-                                lockedTarget.active = false;
-                                document.getElementById('vision-status').innerText = "SCANNING SECTOR...";
-                                document.getElementById('vision-status').style.color = "var(--primary)";
-                            }
+                            if (time - lockedTarget.lastSeen > 60) { lockedTarget.active = false; document.getElementById('vision-status').innerText = "SCANNING SECTOR..."; document.getElementById('vision-status').style.color = "var(--primary)"; }
                         }
-
-                        // Draw Locked Target
-                        if (lockedTarget.active) {
-                            drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
-                        }
-
+                        if (lockedTarget.active) drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
                     } catch (err) {}
                 }
             }
-
-            time++;
-            animationFrame = requestAnimationFrame(draw);
+            time++; animationFrame = requestAnimationFrame(draw);
         }
-
         async function analyzeFace(video, pred) {
-            // Only run if we don't already have a high confidence lock
-            if (lockedTarget.identity.color === "#00FF00") return;
-
-            document.getElementById('vision-status').innerText = "BIOMETRIC ANALYSIS...";
-            
-            // Extract Tensor & Compare
+            if (lockedTarget.identity.color === "#00FF00" || isAnalyzing) return;
+            isAnalyzing = true; document.getElementById('vision-status').innerText = "BIOMETRIC ANALYSIS...";
+            await new Promise(r => setTimeout(r, 100)); // Delay
             if (facesDB.length > 0) {
                 const result = tf.tidy(() => {
-                    const startX = Math.max(0, pred.topLeft[0]);
-                    const startY = Math.max(0, pred.topLeft[1]);
-                    const width = pred.bottomRight[0] - startX;
-                    const height = pred.bottomRight[1] - startY;
+                    const startX = Math.max(0, pred.topLeft[0]); const startY = Math.max(0, pred.topLeft[1]);
+                    const width = pred.bottomRight[0] - startX; const height = pred.bottomRight[1] - startY;
                     if (width <= 0 || height <= 0) return null;
-
                     const videoTensor = tf.browser.fromPixels(video);
                     const faceTensor = videoTensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
                     const resized = tf.image.resizeBilinear(faceTensor, [224, 224]);
                     const embedding = recogModel.infer(resized, true);
-                    
-                    let maxSim = -1;
-                    let matchIndex = -1;
-
+                    let maxSim = -1; let matchIndex = -1;
                     for(let i=0; i<facesDB.length; i++) {
                         if(!facesDB[i].embedding) continue;
                         const dbTensor = tf.tensor(facesDB[i].embedding);
                         const dot = embedding.mul(dbTensor).sum();
-                        const normA = embedding.norm();
-                        const normB = dbTensor.norm();
+                        const normA = embedding.norm(); const normB = dbTensor.norm();
                         const sim = dot.div(normA.mul(normB)).dataSync()[0];
                         if(sim > maxSim) { maxSim = sim; matchIndex = i; }
                     }
                     return { index: matchIndex, score: maxSim };
                 });
-
-                if (result && result.score > 0.82) { // Slightly lower threshold for mobile stability
-                    const p = facesDB[result.index];
-                    lockedTarget.identity = { 
-                        name: `ID: ${p.name.toUpperCase()}`, 
-                        rel: `ACCESS: ${p.rel.toUpperCase()}`, 
-                        color: "#00FF00" 
-                    };
-                    document.getElementById('vision-status').innerText = "IDENTITY VERIFIED";
-                    document.getElementById('vision-status').style.color = "#00FF00";
-                    sfx('click');
+                if (result && result.score > 0.82) {
+                    const p = facesDB[result.index]; lockedTarget.identity = { name: `ID: ${p.name.toUpperCase()}`, rel: `ACCESS: ${p.rel.toUpperCase()}`, color: "#00FF00" };
+                    document.getElementById('vision-status').innerText = "IDENTITY VERIFIED"; document.getElementById('vision-status').style.color = "#00FF00"; sfx('click');
                 } else {
-                    // Confirmed Unknown
                     lockedTarget.identity = { name: "UNKNOWN", rel: "ACCESS: DENIED", color: "#FF0000" };
-                    document.getElementById('vision-status').innerText = "UNKNOWN SUBJECT";
-                    document.getElementById('vision-status').style.color = "#FF0000";
+                    document.getElementById('vision-status').innerText = "UNKNOWN SUBJECT"; document.getElementById('vision-status').style.color = "#FF0000";
                 }
-            } else {
-                // No DB
-                lockedTarget.identity = { name: "UNKNOWN", rel: "NO DATABASE", color: "#FF0000" };
-            }
+            } else { lockedTarget.identity = { name: "UNKNOWN", rel: "NO DATABASE", color: "#FF0000" }; }
+            isAnalyzing = false;
         }
-
-        function drawMenu() {
-            menuItems.forEach(item => {
-                const outerR = scale * 1.6; const innerR = scale * 1.35; const angleWidth = 0.25; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
-                ctx.save(); ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
-                ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke();
-                const midR = (outerR + innerR) / 2; const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
-                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.08}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(item.label, txtX, txtY); ctx.restore();
-            });
-        }
-
-        /* --- MEDIA PLAYER --- */
-        function handleMediaSelect(input) {
-            const files = Array.from(input.files);
-            if (files.length === 0) return;
-            files.forEach(f => playlist.push(f));
-            renderPlaylist();
-            if (currentTrackIndex === -1) playTrack(0);
-        }
-
-        function renderPlaylist() {
-            const container = document.getElementById('playlist-container');
-            container.innerHTML = '';
-            if(playlist.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>';
-                return;
-            }
-            playlist.forEach((track, index) => {
-                const item = document.createElement('div');
-                item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : '');
-                item.onclick = () => playTrack(index);
-                item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`;
-                container.appendChild(item);
-            });
-        }
-
-        function playTrack(index) {
-            if (index < 0 || index >= playlist.length) return;
-            currentTrackIndex = index;
-            const track = playlist[index];
-            const player = document.getElementById('audio-player');
-            player.src = URL.createObjectURL(track);
-            player.play();
-            document.getElementById('now-playing').innerText = track.name.toUpperCase();
-            renderPlaylist();
-            const activeEl = document.querySelector('.active-track');
-            if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        function playNextTrack() {
-            if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1);
-            else playTrack(0);
-        }
-
-        /* --- MOTO HUD --- */
-        function activateHUD() {
-            hudActive = true;
-            document.getElementById('moto-hud').style.display = 'flex';
-            requestFullScreen();
-            speak("HUD Activated.");
-            
-            if ('geolocation' in navigator) {
-                watchId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        let speed = pos.coords.speed;
-                        if(speed === null || speed < 0) speed = 0;
-                        document.getElementById('hud-speed').innerText = Math.round(speed * 3.6);
-                        document.getElementById('gps-status').innerText = "(GPS LOCK)";
-                        document.getElementById('gps-status').style.opacity = "1";
-                    }, 
-                    (err) => { document.getElementById('gps-status').innerText = "(NO GPS)"; }, 
-                    { enableHighAccuracy: true, maximumAge: 0 }
-                );
-            }
-            window.addEventListener('deviceorientation', handleOrientation);
-            updateClock();
-            setInterval(updateClock, 1000);
-        }
-
-        function closeHUD() {
-            hudActive = false;
-            document.getElementById('moto-hud').style.display = 'none';
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-            window.removeEventListener('deviceorientation', handleOrientation);
-            resize(); draw();
-        }
-
-        function handleOrientation(e) {
-            if (!hudActive) return;
-            const alpha = e.alpha || 0;
-            const gamma = e.gamma || 0; 
-            const beta = e.beta || 0;   
-            const offset = (alpha / 360) * 100;
-            document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`;
-            let yShift = (beta - 90) * 2; 
-            if(yShift > 100) yShift = 100; if(yShift < -100) yShift = -100;
-            document.getElementById('horizon-line').style.transform = `rotate(${-gamma}deg) translateY(${yShift}px)`;
-        }
-
-        function updateClock() {
-            const d = new Date();
-            document.getElementById('hud-clock').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        }
+        function drawMenu() { menuItems.forEach(item => { const outerR = scale * 1.6; const innerR = scale * 1.35; const angleWidth = 0.25; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth; ctx.save(); ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath(); ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke(); const midR = (outerR + innerR) / 2; const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR; ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.08}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(item.label, txtX, txtY); ctx.restore(); }); }
+        function handleMediaSelect(input) { const files = Array.from(input.files); if (files.length === 0) return; files.forEach(f => playlist.push(f)); renderPlaylist(); if (currentTrackIndex === -1) playTrack(0); }
+        function renderPlaylist() { const container = document.getElementById('playlist-container'); container.innerHTML = ''; if(playlist.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>'; return; } playlist.forEach((track, index) => { const item = document.createElement('div'); item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : ''); item.onclick = () => playTrack(index); item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`; container.appendChild(item); }); }
+        function playTrack(index) { if (index < 0 || index >= playlist.length) return; currentTrackIndex = index; const track = playlist[index]; const player = document.getElementById('audio-player'); player.src = URL.createObjectURL(track); player.play(); document.getElementById('now-playing').innerText = track.name.toUpperCase(); renderPlaylist(); const activeEl = document.querySelector('.active-track'); if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        function playNextTrack() { if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1); else playTrack(0); }
+        function activateHUD() { hudActive = true; document.getElementById('moto-hud').style.display = 'flex'; requestFullScreen(); speak("HUD Activated."); if ('geolocation' in navigator) { watchId = navigator.geolocation.watchPosition((pos) => { let speed = pos.coords.speed; if(speed === null || speed < 0) speed = 0; document.getElementById('hud-speed').innerText = Math.round(speed * 3.6); document.getElementById('gps-status').innerText = "(GPS LOCK)"; document.getElementById('gps-status').style.opacity = "1"; }, (err) => { document.getElementById('gps-status').innerText = "(NO GPS)"; }, { enableHighAccuracy: true, maximumAge: 0 }); } window.addEventListener('deviceorientation', handleOrientation); updateClock(); setInterval(updateClock, 1000); }
+        function closeHUD() { hudActive = false; document.getElementById('moto-hud').style.display = 'none'; if (watchId) navigator.geolocation.clearWatch(watchId); window.removeEventListener('deviceorientation', handleOrientation); resize(); draw(); }
+        function handleOrientation(e) { if (!hudActive) return; const alpha = e.alpha || 0; const gamma = e.gamma || 0; const beta = e.beta || 0; const offset = (alpha / 360) * 100; document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`; let yShift = (beta - 90) * 2; if(yShift > 100) yShift = 100; if(yShift < -100) yShift = -100; document.getElementById('horizon-line').style.transform = `rotate(${-gamma}deg) translateY(${yShift}px)`; }
+        function updateClock() { const d = new Date(); document.getElementById('hud-clock').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
         function launchMaps() { window.open("https://maps.google.com", "_blank"); }
-
-        /* --- VISION --- */
-        function toggleVision() {
-            visionActive = !visionActive;
-            const vContainer = document.getElementById('vision-container');
-            const errorMsg = document.getElementById('cam-error-msg');
-            const video = document.getElementById('local-vision-feed');
-            
-            if (visionActive) {
-                vContainer.style.display = 'flex';
-                errorMsg.style.display = 'none';
-                video.style.display = 'block';
-                resize();
-                startCamera();
-                sfx('click');
-            } else {
-                vContainer.style.display = 'none';
-                stopCamera();
-            }
-        }
-        
+        function toggleVision() { visionActive = !visionActive; const vContainer = document.getElementById('vision-container'); const errorMsg = document.getElementById('cam-error-msg'); const video = document.getElementById('local-vision-feed'); if (visionActive) { vContainer.style.display = 'flex'; errorMsg.style.display = 'none'; video.style.display = 'block'; resize(); startCamera(); sfx('click'); } else { vContainer.style.display = 'none'; stopCamera(); } }
         function closeVision() { visionActive = false; document.getElementById('vision-container').style.display = 'none'; stopCamera(); sfx('close'); }
-
-        async function startCamera() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacingMode } });
-                const video = document.getElementById('local-vision-feed');
-                video.srcObject = localStream;
-                
-                if(camFacingMode === 'user') video.classList.add('mirrored');
-                else video.classList.remove('mirrored');
-
-            } catch(e) {
-                document.getElementById('local-vision-feed').style.display = 'none';
-                document.getElementById('cam-error-msg').style.display = 'block';
-                speak("Visual sensors failing.");
-            }
-        }
-
+        async function startCamera() { try { localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacingMode } }); const video = document.getElementById('local-vision-feed'); video.srcObject = localStream; if(camFacingMode === 'user') video.classList.add('mirrored'); else video.classList.remove('mirrored'); } catch(e) { document.getElementById('local-vision-feed').style.display = 'none'; document.getElementById('cam-error-msg').style.display = 'block'; speak("Visual sensors failing."); } }
         function stopCamera() { if(localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } }
         function toggleCameraSource() { stopCamera(); camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment'; startCamera(); }
-
-        // CAPTURE & DB FUNCTIONS
-        async function takePhoto() {
-            sfx('click');
-            const video = document.getElementById('local-vision-feed');
-            const cvs = document.createElement('canvas');
-            cvs.width = video.videoWidth; cvs.height = video.videoHeight;
-            const ctx = cvs.getContext('2d');
-            
-            if(camFacingMode === 'user') { ctx.translate(cvs.width, 0); ctx.scale(-1, 1); }
-            ctx.drawImage(video, 0, 0);
-            
-            const imgData = cvs.toDataURL('image/jpeg');
-            document.getElementById('db-preview').src = imgData;
-            document.getElementById('db-name').value = "";
-            document.getElementById('db-relation').value = "";
-            document.getElementById('modal-db').classList.add('active');
-            
-            // Extract Embedding for Save
-            if(isModelLoaded) {
-                document.getElementById('signature-status').innerText = "ANALYZING FACE GEOMETRY...";
-                document.getElementById('signature-status').style.color = "#FFA500";
-                
-                const predictions = await faceModel.estimateFaces(cvs, false);
-                if(predictions.length > 0) {
-                    const startX = predictions[0].topLeft[0];
-                    const startY = predictions[0].topLeft[1];
-                    const width = predictions[0].bottomRight[0] - startX;
-                    const height = predictions[0].bottomRight[1] - startY;
-                    
-                    tf.tidy(() => {
-                        const tensor = tf.browser.fromPixels(cvs);
-                        const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
-                        const resized = tf.image.resizeBilinear(faceT, [224, 224]);
-                        
-                        // Extract and sync
-                        const resultTensor = recogModel.infer(resized, true);
-                        pendingEmbedding = resultTensor.arraySync();
-                    });
-                    
-                    document.getElementById('signature-status').innerText = "BIOMETRIC SIGNATURE ACQUIRED";
-                    document.getElementById('signature-status').style.color = "#00FF00";
-                    document.getElementById('btn-save-id').disabled = false;
-                } else {
-                    document.getElementById('signature-status').innerText = "NO FACE DETECTED. RETRY.";
-                    document.getElementById('signature-status').style.color = "red";
-                    document.getElementById('btn-save-id').disabled = true;
-                }
-            }
-        }
-
-        async function toggleRecord() {
-            if(isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                document.getElementById('btn-record').classList.remove('recording');
-                speak("Recording saved.");
-            } else {
-                if(!localStream) return;
-                recordedChunks = [];
-                mediaRecorder = new MediaRecorder(localStream);
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none'; a.href = url; a.download = 'jarvis_recon_' + Date.now() + '.webm';
-                    document.body.appendChild(a); a.click();
-                    setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
-                };
-                mediaRecorder.start();
-                isRecording = true;
-                document.getElementById('btn-record').classList.add('recording');
-                speak("Recording started.");
-            }
-        }
-
-        function saveIdentity() {
-            const name = document.getElementById('db-name').value;
-            const rel = document.getElementById('db-relation').value;
-            const img = document.getElementById('db-preview').src;
-            if(!name || !pendingEmbedding) return;
-            
-            facesDB.push({ name, rel, img, embedding: pendingEmbedding });
-            localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
-            speak("Identity confirmed and encrypted.");
-            loadFaceDB();
-            closeModal('modal-db');
-        }
-
-        function loadFaceDB() {
-            const list = document.getElementById('db-list');
-            list.innerHTML = "";
-            facesDB.forEach(p => {
-                list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`;
-            });
-        }
-        
-        function clearDB() {
-            facesDB = [];
-            localStorage.removeItem('jarvis_faces');
-            loadFaceDB();
-            speak("Database wiped.");
-        }
-
-        /* --- INPUT --- */
-        let touchActive = false;
-        window.addEventListener('touchstart', handleInput, {passive: false});
-        window.addEventListener('mousedown', (e) => { if(!touchActive) handleInput(e); });
-
-        function handleInput(e) {
-            if(hudActive || visionActive || document.querySelector('.modal-window.active')) return;
-            touchActive = e.type === 'touchstart';
-            const cx = touchActive ? e.touches[0].clientX : e.clientX; const cy = touchActive ? e.touches[0].clientY : e.clientY;
-            const rect = canvas.getBoundingClientRect();
-            const dx = cx - (rect.left + centerX); const dy = cy - (rect.top + centerY); const dist = Math.sqrt(dx*dx + dy*dy); const angle = Math.atan2(dy, dx);
-
-            if (dist > scale * 1.3 && dist < scale * 1.7) {
-                menuItems.forEach(item => {
-                    let diff = angle - item.angle;
-                    while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2;
-                    if (Math.abs(diff) < 0.3) {
-                        e.preventDefault(); sfx('click');
-                        if(item.target === 'vision-toggle') toggleVision(); else if(item.target === 'hud-launch') activateHUD(); else openModal(item.target);
-                    }
-                });
-            } else if (dist < scale * 0.4) toggleVoiceInput();
-        }
-
+        async function takePhoto() { sfx('click'); const video = document.getElementById('local-vision-feed'); const cvs = document.createElement('canvas'); cvs.width = video.videoWidth; cvs.height = video.videoHeight; const ctx = cvs.getContext('2d'); if(camFacingMode === 'user') { ctx.translate(cvs.width, 0); ctx.scale(-1, 1); } ctx.drawImage(video, 0, 0); const imgData = cvs.toDataURL('image/jpeg'); document.getElementById('db-preview').src = imgData; document.getElementById('db-name').value = ""; document.getElementById('db-relation').value = ""; document.getElementById('modal-db').classList.add('active'); if(isModelLoaded) { document.getElementById('signature-status').innerText = "ANALYZING FACE GEOMETRY..."; document.getElementById('signature-status').style.color = "#FFA500"; const predictions = await faceModel.estimateFaces(cvs, false); if(predictions.length > 0) { const startX = predictions[0].topLeft[0]; const startY = predictions[0].topLeft[1]; const width = predictions[0].bottomRight[0] - startX; const height = predictions[0].bottomRight[1] - startY; tf.tidy(() => { const tensor = tf.browser.fromPixels(cvs); const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]); const resized = tf.image.resizeBilinear(faceT, [224, 224]); const resultTensor = recogModel.infer(resized, true); pendingEmbedding = resultTensor.arraySync(); }); document.getElementById('signature-status').innerText = "BIOMETRIC SIGNATURE ACQUIRED"; document.getElementById('signature-status').style.color = "#00FF00"; document.getElementById('btn-save-id').disabled = false; } else { document.getElementById('signature-status').innerText = "NO FACE DETECTED. RETRY."; document.getElementById('signature-status').style.color = "red"; document.getElementById('btn-save-id').disabled = true; } } }
+        async function toggleRecord() { if(isRecording) { mediaRecorder.stop(); isRecording = false; document.getElementById('btn-record').classList.remove('recording'); speak("Recording saved."); } else { if(!localStream) return; recordedChunks = []; mediaRecorder = new MediaRecorder(localStream); mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(recordedChunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = 'jarvis_recon_' + Date.now() + '.webm'; document.body.appendChild(a); a.click(); setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100); }; mediaRecorder.start(); isRecording = true; document.getElementById('btn-record').classList.add('recording'); speak("Recording started."); } }
+        function saveIdentity() { const name = document.getElementById('db-name').value; const rel = document.getElementById('db-relation').value; const img = document.getElementById('db-preview').src; if(!name || !pendingEmbedding) return; facesDB.push({ name, rel, img, embedding: pendingEmbedding }); localStorage.setItem('jarvis_faces', JSON.stringify(facesDB)); speak("Identity confirmed and encrypted."); loadFaceDB(); closeModal('modal-db'); }
+        function loadFaceDB() { const list = document.getElementById('db-list'); list.innerHTML = ""; facesDB.forEach(p => { list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`; }); }
+        function clearDB() { facesDB = []; localStorage.removeItem('jarvis_faces'); loadFaceDB(); speak("Database wiped."); }
+        function handleInput(e) { if(hudActive || visionActive || document.querySelector('.modal-window.active')) return; touchActive = e.type === 'touchstart'; const cx = touchActive ? e.touches[0].clientX : e.clientX; const cy = touchActive ? e.touches[0].clientY : e.clientY; const rect = canvas.getBoundingClientRect(); const dx = cx - (rect.left + centerX); const dy = cy - (rect.top + centerY); const dist = Math.sqrt(dx*dx + dy*dy); const angle = Math.atan2(dy, dx); if (dist > scale * 1.3 && dist < scale * 1.7) { menuItems.forEach(item => { let diff = angle - item.angle; while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2; if (Math.abs(diff) < 0.3) { e.preventDefault(); sfx('click'); if(item.target === 'vision-toggle') toggleVision(); else if(item.target === 'hud-launch') activateHUD(); else openModal(item.target); } }); } else if (dist < scale * 0.4) toggleVoiceInput(); }
+        let touchActive = false; window.addEventListener('touchstart', handleInput, {passive: false}); window.addEventListener('mousedown', (e) => { if(!touchActive) handleInput(e); });
         function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
-
-        /* --- UTILS & AI --- */
-        function sfx(type) {
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination);
-            if(type === 'startup') { osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } 
-            else { osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square'; osc.start(); osc.stop(audioCtx.currentTime + 0.05); }
-        }
-
-        function speak(text) {
-            if (window.speechSynthesis) {
-                const u = new SpeechSynthesisUtterance(text); const voices = speechSynthesis.getVoices();
-                const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male'));
-                if (brit) u.voice = brit; speechSynthesis.speak(u);
-            }
-        }
-
-        function initSpeech() {
-            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if(!SR) return;
-            recognition = new SR(); recognition.continuous = false; recognition.lang = 'en-GB';
-            recognition.onresult = (e) => {
-                const cmd = e.results[0][0].transcript.toLowerCase();
-                if(cmd.includes('vision') || cmd.includes('camera')) toggleVision();
-                else if(cmd.includes('hud') || cmd.includes('bike')) activateHUD();
-                else if(cmd.includes('play music') || cmd.includes('start music') || cmd.includes('play media')) {
-                    if(playlist.length > 0) {
-                        speak("Dropping the needle, Sir.");
-                        if(document.getElementById('audio-player').paused) playTrack(currentTrackIndex > -1 ? currentTrackIndex : 0);
-                        openModal('modal-media');
-                    } else {
-                        speak("No media loaded, Sir.");
-                        openModal('modal-media');
-                    }
-                }
-            };
-        }
+        function sfx(type) { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); if(type === 'startup') { osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } else { osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square'; osc.start(); osc.stop(audioCtx.currentTime + 0.05); } }
+        function speak(text) { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); const voices = speechSynthesis.getVoices(); const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male')); if (brit) u.voice = brit; speechSynthesis.speak(u); } }
+        function initSpeech() { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if(!SR) return; recognition = new SR(); recognition.continuous = false; recognition.lang = 'en-GB'; recognition.onresult = (e) => { const cmd = e.results[0][0].transcript.toLowerCase(); if(cmd.includes('vision') || cmd.includes('camera')) toggleVision(); else if(cmd.includes('hud') || cmd.includes('bike')) activateHUD(); else if(cmd.includes('play music') || cmd.includes('start music') || cmd.includes('play media')) { if(playlist.length > 0) { speak("Dropping the needle, Sir."); if(document.getElementById('audio-player').paused) playTrack(currentTrackIndex > -1 ? currentTrackIndex : 0); openModal('modal-media'); } else { speak("No media loaded, Sir."); openModal('modal-media'); } } }; }
         function toggleVoiceInput() { try { recognition.start(); } catch(e) { recognition.stop(); } }
         function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
-
     </script>
 </body>
 </html>
