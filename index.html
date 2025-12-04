@@ -538,11 +538,13 @@
                     }
                 });
             }
+            else if (dist < scale * 0.4) toggleVoiceInput(); 
         }
 
         let touchActive = false; window.addEventListener('touchstart', handleInput, {passive: false}); window.addEventListener('mousedown', (e) => { if(!touchActive) handleInput(e); });
         function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
+        function closeAllModals() { document.querySelectorAll('.modal-window').forEach(m => m.classList.remove('active')); }
         function sfx(type) { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); if(type === 'startup') { osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } else { osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square'; osc.start(); osc.stop(audioCtx.currentTime + 0.05); } }
         function speak(text) { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); const voices = speechSynthesis.getVoices(); const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male')); if (brit) u.voice = brit; speechSynthesis.speak(u); } }
         
@@ -551,7 +553,7 @@
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition; 
             if(!SR) return; 
             recognition = new SR(); 
-            recognition.continuous = true; // ALWAYS LISTENING
+            recognition.continuous = false; // RESTART MANUALLY FOR STABILITY
             recognition.interimResults = false;
             recognition.lang = 'en-GB'; 
             
@@ -560,19 +562,20 @@
                 const cmd = e.results[last][0].transcript.toLowerCase().trim();
                 console.log("Command:", cmd);
 
-                // WAKE WORD: "JARVIS" (Optional, triggers visual/audio cue)
-                if(cmd.includes('jarvis')) {
-                    sfx('click'); 
-                    // Remove "jarvis" from cmd to parse action
-                    // e.g., "Jarvis open HUD" -> "open HUD"
-                }
-
-                // PARSE COMMANDS
-                if(cmd.includes('open hud') || cmd.includes('start hud')) { speakRandomConfirm(); activateHUD(); }
-                else if(cmd.includes('close hud') || cmd.includes('kill hud')) { speakRandomConfirm(); closeHUD(); }
+                // --- COMMAND PRIORITY: CHECK CLOSE FIRST ---
                 
-                else if(cmd.includes('vision') || cmd.includes('camera') || cmd.includes('eyes')) { speakRandomConfirm(); if(!visionActive) toggleVision(); }
+                // CLOSE COMMANDS
+                if(cmd.includes('close hud') || cmd.includes('kill hud')) { speakRandomConfirm(); closeHUD(); }
                 else if(cmd.includes('close vision') || cmd.includes('stop camera')) { speakRandomConfirm(); if(visionActive) closeVision(); }
+                else if(cmd.includes('close media') || cmd.includes('close music')) { speakRandomConfirm(); closeModal('modal-media'); }
+                else if(cmd.includes('close settings') || cmd.includes('close config')) { speakRandomConfirm(); closeModal('modal-settings'); }
+                else if(cmd.includes('close database') || cmd.includes('close identity')) { speakRandomConfirm(); closeModal('modal-db'); }
+                else if(cmd.includes('close comms') || cmd.includes('close social')) { speakRandomConfirm(); closeModal('modal-comms'); }
+                else if(cmd.includes('close')) { speakRandomConfirm(); closeAllModals(); } // Generic close
+
+                // OPEN COMMANDS
+                else if(cmd.includes('open hud') || cmd.includes('start hud')) { speakRandomConfirm(); activateHUD(); }
+                else if(cmd.includes('vision') || cmd.includes('camera') || cmd.includes('eyes')) { speakRandomConfirm(); if(!visionActive) toggleVision(); }
 
                 else if(cmd.includes('comms') || cmd.includes('social')) { speakRandomConfirm(); openModal('modal-comms'); }
                 else if(cmd.includes('whatsapp')) { launchApp('whatsapp://send?text='); }
@@ -580,21 +583,30 @@
                 else if(cmd.includes('messenger')) { launchApp('https://m.me/'); }
                 else if(cmd.includes('instagram')) { launchApp('https://www.instagram.com/'); }
 
+                // MEDIA COMMANDS
                 else if(cmd.includes('media') || cmd.includes('music') || cmd.includes('player')) { speakRandomConfirm(); openModal('modal-media'); }
-                else if(cmd.includes('play')) { document.getElementById('audio-player').play(); }
+                else if(cmd.includes('play')) { 
+                    const player = document.getElementById('audio-player');
+                    if (playlist.length > 0) {
+                        if(!player.src || player.src === "") playTrack(0); // If no track loaded, load first
+                        else player.play();
+                    } else {
+                        speak("Playlist empty, Sir.");
+                    }
+                }
                 else if(cmd.includes('pause') || cmd.includes('stop')) { document.getElementById('audio-player').pause(); }
                 else if(cmd.includes('next') || cmd.includes('skip')) { playNextTrack(); }
                 else if(cmd.includes('clear playlist')) { clearMediaDB(); }
 
                 else if(cmd.includes('database') || cmd.includes('identity')) { speakRandomConfirm(); openModal('modal-db'); }
-                else if(cmd.includes('close')) { document.querySelectorAll('.modal-window').forEach(m => m.classList.remove('active')); }
                 
                 else if(cmd.includes('full screen')) { requestFullScreen(); }
                 else if(cmd.includes('status') || cmd.includes('report')) { speak("All systems nominal. Battery at " + Math.round(Math.random()*20+80) + " percent."); }
             };
 
+            // FORCE RESTART LOOP
             recognition.onend = () => { 
-                // AUTO RESTART LOOP
+                console.log("RESTARTING LISTENER...");
                 try { recognition.start(); } catch(e) {} 
             };
             
@@ -606,6 +618,7 @@
             speak(phrases[Math.floor(Math.random() * phrases.length)]);
         }
 
+        function toggleVoiceInput() { try { recognition.start(); } catch(e) {} }
         function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
     </script>
 </body>
