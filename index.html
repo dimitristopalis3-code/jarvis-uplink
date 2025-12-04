@@ -27,7 +27,7 @@
         #reactor-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; z-index: 0; opacity: 0.8; pointer-events: none; }
         canvas { display: block; }
         
-        /* --- VISION SYSTEM --- */
+        /* --- VISION SYSTEM (MARK III CANVAS UPGRADE) --- */
         #vision-container {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #000; z-index: 200; display: none;
@@ -40,12 +40,18 @@
             display: flex; justify-content: center; align-items: center;
         }
 
+        /* The Canvas Overlay for Rings */
+        #vision-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 20; pointer-events: none;
+        }
+
+        /* Video Feed */
         #vision-feed-circle {
-            width: 80%; height: 80%; border-radius: 50%;
+            width: 55%; height: 55%; border-radius: 50%;
             overflow: hidden; position: relative;
-            border: 2px solid var(--primary);
-            box-shadow: 0 0 30px var(--secondary);
-            z-index: 10; background: #050a10;
+            z-index: 10; background: #000;
+            border: 1px solid rgba(0, 229, 255, 0.1);
         }
         
         #vision-feed-circle video, #vision-feed-circle img {
@@ -53,34 +59,40 @@
             transform: scaleX(-1);
         }
 
-        .v-ring { position: absolute; border-radius: 50%; border: 1px solid transparent; border-top: 2px solid var(--primary); border-bottom: 2px solid var(--primary); box-shadow: 0 0 15px var(--secondary); pointer-events: none; }
-        .vr-1 { width: 100%; height: 100%; animation: spin 4s linear infinite; opacity: 0.8; }
-        .vr-2 { width: 90%; height: 90%; animation: spin-rev 6s linear infinite; border-left: 2px solid var(--primary); border-top: transparent; opacity: 0.6; }
-        .vr-3 { width: 110%; height: 110%; border: 1px dashed var(--primary); animation: spin 10s linear infinite; opacity: 0.3; }
+        /* TARGETING RETICLE (MINI REACTOR) */
+        #reticle-container {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 150px; height: 150px; pointer-events: none;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; transition: opacity 0.3s;
+            z-index: 30;
+        }
+
+        /* Custom CSS Rings to mimic Reactor style for the lock */
+        .lock-ring {
+            position: absolute; border-radius: 50%;
+            border: 2px solid transparent;
+        }
+        .lr-1 { width: 100%; height: 100%; border-top: 2px solid var(--primary); border-bottom: 2px solid var(--primary); animation: spin 2s linear infinite; }
+        .lr-2 { width: 80%; height: 80%; border-left: 2px solid #FFA500; border-right: 2px solid #FFA500; animation: spin-rev 1.5s linear infinite; }
+        .lr-3 { width: 60%; height: 60%; border: 1px dashed var(--primary); animation: spin 4s linear infinite; }
+        
+        .locked-mode #reticle-container { opacity: 1; }
+        
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes spin-rev { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
 
+        /* Vision UI */
         .vision-controls-bar {
             position: absolute; bottom: 40px; width: 100%;
             display: flex; justify-content: center; gap: 30px; pointer-events: auto; z-index: 50;
         }
-        
         .v-btn {
             background: rgba(0,0,0,0.8); border: 1px solid var(--primary);
             color: var(--primary); border-radius: 50%; width: 60px; height: 60px;
             display: flex; align-items: center; justify-content: center;
             font-size: 20px; box-shadow: 0 0 15px var(--secondary); cursor: pointer;
         }
-        .v-btn:active { background: var(--primary); color: #000; }
-
-        .face-brackets {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 50%; height: 50%; border: 1px solid rgba(0,229,255,0.5);
-            display: none; pointer-events: none;
-        }
-        .face-brackets::before, .face-brackets::after { content: ''; position: absolute; width: 15px; height: 15px; border-color: var(--primary); border-style: solid; }
-        .face-brackets::before { top: -1px; left: -1px; border-width: 3px 0 0 3px; }
-        .face-brackets::after { bottom: -1px; right: -1px; border-width: 0 3px 3px 0; }
 
         /* --- MOTO HUD --- */
         #moto-hud {
@@ -158,7 +170,6 @@
         /* PLAYLIST STYLES */
         #playlist-container {
             flex: 1; overflow-y: auto; margin-top: 10px; border-top: 1px solid rgba(0,229,255,0.3);
-            /* Custom Scrollbar */
             scrollbar-width: thin; scrollbar-color: var(--primary) transparent;
         }
         #playlist-container::-webkit-scrollbar { width: 5px; }
@@ -184,10 +195,10 @@
         <div style="margin-top: 20px; font-size: 12px; font-family: 'Share Tech Mono'; opacity: 0.6;">T-FORCE SECURITY PROTOCOLS</div>
     </div>
 
-    <!-- MAIN REACTOR -->
+    <!-- MAIN REACTOR (BACKGROUND) -->
     <div id="reactor-container"><canvas id="reactor"></canvas></div>
 
-    <!-- MOTO HUD (AIRCRAFT STYLE) -->
+    <!-- MOTO HUD -->
     <div id="moto-hud">
         <div class="hud-top">
             <div class="compass-marker"></div>
@@ -214,10 +225,13 @@
         </div>
     </div>
 
-    <!-- CIRCULAR VISION SYSTEM -->
+    <!-- VISION SYSTEM -->
     <div id="vision-container">
         <div class="vision-circle-wrapper">
-            <div class="vr-1 v-ring"></div><div class="vr-2 v-ring"></div><div class="vr-3 v-ring"></div>
+            <!-- Canvas Overlay for Reactor Rings -->
+            <canvas id="vision-canvas"></canvas>
+
+            <!-- Video Feed -->
             <div id="vision-feed-circle">
                 <video id="local-vision-feed" autoplay playsinline></video>
                 <img id="captured-frame" style="display:none;">
@@ -225,14 +239,21 @@
                     <i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST
                 </div>
             </div>
-            <div class="face-brackets" id="face-brackets">
-                <div style="position:absolute; top:-25px; left:0; width:100%; text-align:center; background:rgba(0,0,0,0.7); font-size:10px;">LOCKED</div>
+            
+            <!-- MINI REACTOR LOCK RETICLE -->
+            <div id="reticle-container">
+                <div class="lock-ring lr-1"></div>
+                <div class="lock-ring lr-2"></div>
+                <div class="lock-ring lr-3"></div>
             </div>
+            
         </div>
-        <div style="margin-top: 20px; font-size: 14px; letter-spacing: 2px; z-index: 50;" id="vision-status">SYSTEM ACTIVE</div>
+        
+        <div style="margin-top: 20px; font-size: 14px; letter-spacing: 2px; z-index: 50; text-shadow: 0 0 10px var(--primary);" id="vision-status">SCANNING TARGETS...</div>
+        
         <div class="vision-controls-bar">
             <div class="v-btn" onclick="toggleCameraSource()"><i class="fas fa-sync-alt"></i></div>
-            <div class="v-btn" style="border-color:#FFA500; color:#FFA500;" onclick="lockTarget()"><i class="fas fa-crosshairs"></i></div>
+            <div class="v-btn" style="border-color:#FFA500; color:#FFA500;" onclick="toggleLock()" title="Engage Target Lock"><i class="fas fa-crosshairs"></i></div>
             <div class="v-btn" onclick="closeVision()"><i class="fas fa-times"></i></div>
         </div>
     </div>
@@ -271,15 +292,12 @@
             <button class="text-btn" onclick="document.getElementById('media-upload').click()">
                 <i class="fas fa-plus"></i> ADD AUDIO FILES
             </button>
-            
             <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid rgba(0,229,255,0.2);">
                 <div id="now-playing" style="color: var(--primary); font-size: 12px; margin-bottom: 5px; text-align: center;">NO MEDIA</div>
                 <audio id="audio-player" controls style="width:100%; height: 30px; filter: invert(1) hue-rotate(180deg);"></audio>
             </div>
-
             <div style="font-size: 10px; color: #888; margin-top: 10px;">PLAYLIST</div>
             <div id="playlist-container">
-                <!-- Tracks go here -->
                 <div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>
             </div>
         </div>
@@ -289,6 +307,11 @@
         /* --- SYSTEM CORE --- */
         const canvas = document.getElementById('reactor');
         const ctx = canvas.getContext('2d');
+        
+        // Vision Canvas
+        const vCanvas = document.getElementById('vision-canvas');
+        const vCtx = vCanvas.getContext('2d');
+
         let width, height, centerX, centerY, scale, time = 0;
         let animationFrame;
         
@@ -301,9 +324,7 @@
         let audioCtx, recognition;
         let watchId = null;
         let camFacingMode = 'environment';
-
-        // MEDIA STATE
-        let playlist = []; // Stores file objects
+        let playlist = []; 
         let currentTrackIndex = -1;
 
         const menuItems = [
@@ -322,13 +343,12 @@
             document.getElementById('start-overlay').style.display = 'none';
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
             
-            // Audio Listeners
             const player = document.getElementById('audio-player');
             player.onended = playNextTrack;
 
             loadFaceDB();
             resize();
-            draw();
+            draw(); // Starts the loop
             initSpeech();
             sfx('startup');
             speak("Welcome back, Jim. System secure.");
@@ -340,67 +360,158 @@
             else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
         }
 
-        /* --- MEDIA PLAYER LOGIC --- */
+        /* --- GRAPHICS ENGINE (UNIFIED) --- */
+        window.addEventListener('resize', resize);
+        function resize() {
+            width = window.innerWidth; height = window.innerHeight;
+            
+            // Main Canvas
+            canvas.width = width; canvas.height = height;
+            centerX = width / 2; centerY = height / 2;
+            scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25);
+
+            // Vision Canvas (Matches container size roughly)
+            const vWrapper = document.querySelector('.vision-circle-wrapper');
+            if(vWrapper) {
+                const rect = vWrapper.getBoundingClientRect();
+                vCanvas.width = rect.width;
+                vCanvas.height = rect.height;
+            }
+        }
+
+        // The Core Mark III Drawing Logic
+        function drawReactor(context, x, y, r, t, isBg) {
+            context.setTransform(1,0,0,1,0,0); 
+            if(isBg) context.clearRect(0,0, width, height); 
+            else context.clearRect(0,0, vCanvas.width, vCanvas.height);
+            
+            context.translate(x, y);
+
+            // 1. Outer Ticks
+            context.save(); context.rotate(t * 0.0005); 
+            for (let i = 0; i < 60; i++) {
+                context.rotate(Math.PI * 2 / 60); context.beginPath(); 
+                context.moveTo(r*1.0,0); context.lineTo(r*1.1,0);
+                context.strokeStyle = '#00E5FF'; context.lineWidth = isBg ? 1 : 2; context.stroke();
+            }
+            context.restore();
+
+            // 2. Arc Segments 1
+            context.save(); context.rotate(-t * 0.001);
+            context.lineWidth = r * 0.12; context.strokeStyle = 'rgba(0, 229, 255, 0.5)';
+            for(let j=0; j<3; j++) {
+                context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke();
+                context.rotate(Math.PI*2/3);
+            }
+            context.restore();
+
+            // 3. Solid Ring
+            context.save(); context.rotate(t * 0.002);
+            context.strokeStyle = '#00E5FF'; context.lineWidth = 2;
+            context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke();
+            context.restore();
+
+            // 4. Arc Segments 2
+            context.save(); context.rotate(-t * 0.003);
+            context.lineWidth = r * 0.1; context.strokeStyle = '#00E5FF';
+            for(let l=0; l<2; l++) {
+                context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke();
+                context.rotate(Math.PI);
+            }
+            context.restore();
+
+            // 5. Orange Ring
+            context.save(); context.rotate(t * 0.01);
+            context.lineWidth = isBg ? 6 : 4; context.strokeStyle = '#FFA500'; 
+            context.shadowColor = '#FFA500'; context.shadowBlur = 15;
+            context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke();
+            context.restore();
+
+            // 6. White Ring
+            context.save(); context.rotate(t * 0.02);
+            context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; 
+            context.shadowColor = '#FFFFFF'; context.shadowBlur = 10;
+            context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke();
+            context.restore();
+        }
+
+        function draw() {
+            if(hudActive) { animationFrame = requestAnimationFrame(draw); return; }
+
+            // Draw Background Reactor
+            if(!visionActive) {
+                drawReactor(ctx, centerX, centerY, scale, time, true);
+                
+                // Center Text (Only on BG)
+                ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+                ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
+                
+                drawMenu();
+            }
+
+            // Draw Vision Reactor (If active)
+            if(visionActive) {
+                // Calc scale for vision (width / 2 * 0.5 to fit roughly where SVGs were)
+                const vScale = (vCanvas.width / 2) * 0.85; 
+                drawReactor(vCtx, vCanvas.width/2, vCanvas.height/2, vScale, time, false);
+            }
+
+            time++;
+            animationFrame = requestAnimationFrame(draw);
+        }
+
+        function drawMenu() {
+            menuItems.forEach(item => {
+                const outerR = scale * 1.6; const innerR = scale * 1.35; const angleWidth = 0.25; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
+                ctx.save(); ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
+                ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke();
+                const midR = (outerR + innerR) / 2; const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
+                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.08}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(item.label, txtX, txtY); ctx.restore();
+            });
+        }
+
+        /* --- MEDIA PLAYER --- */
         function handleMediaSelect(input) {
             const files = Array.from(input.files);
             if (files.length === 0) return;
-            
             files.forEach(f => playlist.push(f));
             renderPlaylist();
-            
-            // If nothing playing, start first new one
-            if (currentTrackIndex === -1) {
-                playTrack(0);
-            }
+            if (currentTrackIndex === -1) playTrack(0);
         }
 
         function renderPlaylist() {
             const container = document.getElementById('playlist-container');
             container.innerHTML = '';
-            
             if(playlist.length === 0) {
                 container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>';
                 return;
             }
-
             playlist.forEach((track, index) => {
                 const item = document.createElement('div');
                 item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : '');
                 item.onclick = () => playTrack(index);
-                item.innerHTML = `
-                    <div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div>
-                    <div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>
-                `;
+                item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`;
                 container.appendChild(item);
             });
         }
 
         function playTrack(index) {
             if (index < 0 || index >= playlist.length) return;
-            
             currentTrackIndex = index;
             const track = playlist[index];
             const player = document.getElementById('audio-player');
-            
-            // Create URL for the file
             player.src = URL.createObjectURL(track);
             player.play();
-            
             document.getElementById('now-playing').innerText = track.name.toUpperCase();
-            renderPlaylist(); // Update active highlights
-            
-            // Ensure visual list scrolls to active track
+            renderPlaylist();
             const activeEl = document.querySelector('.active-track');
             if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         function playNextTrack() {
-            if (currentTrackIndex < playlist.length - 1) {
-                playTrack(currentTrackIndex + 1);
-            } else {
-                // Optional: Loop back to start
-                playTrack(0);
-            }
+            if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1);
+            else playTrack(0);
         }
 
         /* --- MOTO HUD --- */
@@ -441,10 +552,8 @@
             const alpha = e.alpha || 0;
             const gamma = e.gamma || 0; 
             const beta = e.beta || 0;   
-            
             const offset = (alpha / 360) * 100;
             document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`;
-            
             let yShift = (beta - 90) * 2; 
             if(yShift > 100) yShift = 100; if(yShift < -100) yShift = -100;
             document.getElementById('horizon-line').style.transform = `rotate(${-gamma}deg) translateY(${yShift}px)`;
@@ -452,8 +561,7 @@
 
         function updateClock() {
             const d = new Date();
-            document.getElementById('hud-clock').innerText = 
-                `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('hud-clock').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         }
         function launchMaps() { window.open("https://maps.google.com", "_blank"); }
 
@@ -468,6 +576,10 @@
                 vContainer.style.display = 'flex';
                 errorMsg.style.display = 'none';
                 video.style.display = 'block';
+                
+                // Recalc size for vision canvas
+                resize();
+                
                 startCamera();
                 sfx('click');
             } else {
@@ -492,14 +604,21 @@
         function stopCamera() { if(localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } }
         function toggleCameraSource() { stopCamera(); camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment'; startCamera(); }
 
-        function lockTarget() {
+        function toggleLock() {
             sfx('click');
-            const brackets = document.getElementById('face-brackets');
-            if(brackets.style.display === 'block') {
-                brackets.style.display = 'none';
+            const container = document.getElementById('vision-container');
+            const status = document.getElementById('vision-status');
+            
+            // Toggle Lock State class
+            if(container.classList.contains('locked-mode')) {
+                container.classList.remove('locked-mode');
+                status.innerText = "SCANNING TARGETS...";
+                status.style.color = "var(--primary)";
             } else {
-                brackets.style.display = 'block';
-                setTimeout(captureFrame, 500);
+                container.classList.add('locked-mode');
+                status.innerText = "TARGET LOCKED";
+                status.style.color = "#FFA500";
+                setTimeout(captureFrame, 800);
             }
         }
 
@@ -513,6 +632,10 @@
             document.getElementById('db-name').value = "";
             document.getElementById('db-relation').value = "";
             document.getElementById('modal-db').classList.add('active');
+            
+            document.getElementById('vision-container').classList.remove('locked-mode');
+            document.getElementById('vision-status').innerText = "SCANNING TARGETS...";
+            document.getElementById('vision-status').style.color = "var(--primary)";
         }
 
         function saveIdentity() {
@@ -532,47 +655,6 @@
             list.innerHTML = "";
             facesDB.forEach(p => {
                 list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`;
-            });
-        }
-
-        /* --- GRAPHICS --- */
-        window.addEventListener('resize', resize);
-        function resize() {
-            width = window.innerWidth; height = window.innerHeight;
-            canvas.width = width; canvas.height = height;
-            centerX = width / 2; centerY = height / 2;
-            scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25);
-        }
-
-        function draw() {
-            if(hudActive || visionActive) { animationFrame = requestAnimationFrame(draw); return; }
-            ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,width,height); ctx.translate(centerX, centerY);
-            
-            ctx.save(); ctx.rotate(time * 0.0005); 
-            for (let i = 0; i < 60; i++) { ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(scale*1.0,0); ctx.lineTo(scale*1.1,0); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke(); }
-            ctx.restore();
-
-            ctx.save(); ctx.rotate(-time * 0.001); ctx.lineWidth = scale * 0.12; ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)';
-            for(let j=0; j<3; j++) { ctx.beginPath(); ctx.arc(0, 0, scale*0.85, 0, 1.2); ctx.stroke(); ctx.rotate(Math.PI*2/3); }
-            ctx.restore();
-
-            ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0,0, scale*0.75, 0, Math.PI*2); ctx.stroke(); ctx.restore();
-            ctx.save(); ctx.rotate(time * 0.01); ctx.lineWidth = 6; ctx.strokeStyle = '#00E5FF'; ctx.shadowColor = '#00E5FF'; ctx.shadowBlur = 15; ctx.beginPath(); ctx.arc(0,0, scale*0.55, 0, 2.0); ctx.stroke(); ctx.restore();
-
-            ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
-
-            drawMenu();
-            time++;
-            animationFrame = requestAnimationFrame(draw);
-        }
-
-        function drawMenu() {
-            menuItems.forEach(item => {
-                const outerR = scale * 1.6; const innerR = scale * 1.35; const angleWidth = 0.25; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
-                ctx.save(); ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
-                ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke();
-                const midR = (outerR + innerR) / 2; const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
-                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.08}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(item.label, txtX, txtY); ctx.restore();
             });
         }
 
@@ -624,13 +706,11 @@
             recognition = new SR(); recognition.continuous = false; recognition.lang = 'en-GB';
             recognition.onresult = (e) => {
                 const cmd = e.results[0][0].transcript.toLowerCase();
-                // Voice Commands
                 if(cmd.includes('vision') || cmd.includes('camera')) toggleVision();
                 else if(cmd.includes('hud') || cmd.includes('bike')) activateHUD();
                 else if(cmd.includes('play music') || cmd.includes('start music') || cmd.includes('play media')) {
                     if(playlist.length > 0) {
                         speak("Dropping the needle, Sir.");
-                        // Play if not playing, or just ensure UI is up
                         if(document.getElementById('audio-player').paused) playTrack(currentTrackIndex > -1 ? currentTrackIndex : 0);
                         openModal('modal-media');
                     } else {
