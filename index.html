@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- TENSORFLOW & MODELS (THE BRAINS) -->
+    <!-- TENSORFLOW & MODELS -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
@@ -48,7 +48,6 @@
         #local-vision-feed {
             width: 100%; height: 100%; object-fit: cover;
         }
-        /* Mirror ONLY for user camera */
         #local-vision-feed.mirrored { transform: scaleX(-1); }
 
         /* AR Overlay Canvas */
@@ -146,6 +145,7 @@
         .db-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 1px solid var(--primary); }
         input { background: #111; border: 1px solid #333; color: var(--primary); padding: 15px; width: 100%; font-family: 'Share Tech Mono'; margin-bottom: 10px; }
         .text-btn { padding: 15px; background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-weight: bold; width: 100%; }
+        .text-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* PLAYLIST STYLES */
         #playlist-container {
@@ -244,10 +244,11 @@
             </div>
             <input type="text" id="db-name" placeholder="FULL NAME">
             <input type="text" id="db-relation" placeholder="RELATION (e.g. Wife)">
-            <div id="signature-status" style="font-size:10px; color:#FFA500; margin-bottom:10px; text-align:center;">EXTRACTING BIOMETRIC SIGNATURE...</div>
+            <div id="signature-status" style="font-size:10px; color:#FFA500; margin-bottom:10px; text-align:center;">TAKE PHOTO TO EXTRACT SIGNATURE</div>
             <button class="text-btn" id="btn-save-id" onclick="saveIdentity()" disabled>SAVE IDENTITY</button>
             <div style="border-top:1px solid #333; margin-top:20px; padding-top:10px; font-size:12px;">KNOWN ASSOCIATES:</div>
             <div id="db-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+            <button class="text-btn" style="margin-top:20px; background:rgba(255,0,0,0.2); border-color:red; color:red;" onclick="clearDB()">WIPE DATABASE</button>
         </div>
     </div>
 
@@ -311,6 +312,11 @@
         let recogModel = null; // MobileNet
         let isModelLoaded = false;
         let pendingEmbedding = null;
+        
+        // Analysis State
+        let isAnalyzing = false;
+        let analysisTimer = 0;
+        let currentIdentity = null; // Stores result for a few seconds
 
         const menuItems = [
             { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, 
@@ -454,14 +460,15 @@
 
             // Status Text Line
             ctx.save();
-            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 130, -30);
+            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 150, -30);
             ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
 
             ctx.fillStyle = color;
-            ctx.font = "12px Share Tech Mono"; ctx.textAlign = "left";
+            ctx.font = "14px Share Tech Mono"; ctx.textAlign = "left";
+            ctx.shadowColor = color; ctx.shadowBlur = 5;
             ctx.fillText(name, r + 35, -35);
-            ctx.font = "10px Share Tech Mono";
-            ctx.fillText(relation, r + 35, -20);
+            ctx.font = "12px Share Tech Mono";
+            ctx.fillText(relation, r + 35, -15);
             ctx.restore();
             ctx.restore();
         }
@@ -497,8 +504,6 @@
                         const predictions = await faceModel.estimateFaces(video, false);
                         
                         if (predictions.length > 0) {
-                            document.getElementById('vision-status').innerText = "ANALYZING BIOMETRICS...";
-                            document.getElementById('vision-status').style.color = "#FFA500";
                             
                             // Process each face
                             for (let pred of predictions) {
@@ -519,12 +524,29 @@
                                 let drawX = faceX;
                                 if (camFacingMode === 'user') drawX = cvsW - faceX;
 
-                                // 2. RECOGNITION (Cosine Similarity)
-                                let identity = await identifyFace(video, pred);
-                                
-                                drawTacticalHUD(arCtx, drawX, faceY, 60, time*2, identity.color, identity.name, identity.rel);
+                                // --- ASYNC RECOGNITION THROTTLE ---
+                                // Only run recognition if not currently busy, to prevent hang
+                                if (!isAnalyzing) {
+                                    // Trigger analysis
+                                    analyzeFace(video, pred);
+                                }
+
+                                // Use current Identity state for drawing
+                                let displayName = "ANALYZING...";
+                                let displayRel = "SCANNING...";
+                                let displayColor = "#FFA500"; // Orange while thinking
+
+                                if (currentIdentity) {
+                                    displayName = currentIdentity.name;
+                                    displayRel = currentIdentity.rel;
+                                    displayColor = currentIdentity.color;
+                                }
+
+                                drawTacticalHUD(arCtx, drawX, faceY, 60, time*2, displayColor, displayName, displayRel);
                             }
                         } else {
+                            // Reset if no faces
+                            currentIdentity = null;
                             document.getElementById('vision-status').innerText = "SCANNING SECTOR...";
                             document.getElementById('vision-status').style.color = "var(--primary)";
                         }
@@ -536,61 +558,84 @@
             animationFrame = requestAnimationFrame(draw);
         }
 
-        async function identifyFace(video, pred) {
-            // Default Unknown
+        async function analyzeFace(video, pred) {
+            isAnalyzing = true;
+            document.getElementById('vision-status').innerText = "BIOMETRIC ANALYSIS...";
+            
+            // Artificial delay to prevent CPU overload and show "working" state
+            // Also because TFJS tensors act weird if called every frame
+            await new Promise(r => setTimeout(r, 500)); 
+
+            // Extract Tensor
             let result = { name: "UNKNOWN", rel: "ACCESS: DENIED", color: "#FF0000" };
             
-            if (facesDB.length === 0) return result;
+            if (facesDB.length > 0) {
+                // We use tf.tidy to automatically clean up all tensors created in this scope
+                // This fixes the memory leak/hang issue
+                const bestMatch = tf.tidy(() => {
+                    const startX = Math.max(0, pred.topLeft[0]);
+                    const startY = Math.max(0, pred.topLeft[1]);
+                    const width = pred.bottomRight[0] - startX;
+                    const height = pred.bottomRight[1] - startY;
 
-            // Crop face tensor
-            const startX = Math.max(0, pred.topLeft[0]);
-            const startY = Math.max(0, pred.topLeft[1]);
-            const width = pred.bottomRight[0] - startX;
-            const height = pred.bottomRight[1] - startY;
+                    if (width <= 0 || height <= 0) return null;
 
-            if (width <= 0 || height <= 0) return result;
+                    const videoTensor = tf.browser.fromPixels(video);
+                    const faceTensor = videoTensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
+                    const resized = tf.image.resizeBilinear(faceTensor, [224, 224]); 
+                    
+                    // Normalize? MobileNet expects [-1, 1] or [0, 1]? 
+                    // tf.browser.fromPixels is [0, 255]. mobilenet typically wants float.
+                    // But we used raw for training, so use raw for compare.
+                    
+                    // Infer
+                    // Note: This 'infer' call on mobilenet takes time.
+                    const embedding = recogModel.infer(resized, true); 
+                    
+                    let maxSim = -1;
+                    let matchIndex = -1;
 
-            // Extract Embedding
-            const videoTensor = tf.browser.fromPixels(video);
-            const faceTensor = videoTensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
-            const resized = tf.image.resizeBilinear(faceTensor, [224, 224]); // MobileNet size
-            const embedding = await recogModel.infer(resized, true); // Get internal activation
-            
-            // Compare
-            let bestMatch = -1;
-            let maxSim = -100;
+                    for(let i=0; i<facesDB.length; i++) {
+                        if(!facesDB[i].embedding) continue;
+                        const dbTensor = tf.tensor(facesDB[i].embedding);
+                        
+                        // Cosine Sim: (A . B) / (||A|| * ||B||)
+                        const dot = embedding.mul(dbTensor).sum();
+                        const normA = embedding.norm();
+                        const normB = dbTensor.norm();
+                        const sim = dot.div(normA.mul(normB)).dataSync()[0];
+                        
+                        if(sim > maxSim) {
+                            maxSim = sim;
+                            matchIndex = i;
+                        }
+                    }
+                    
+                    return { index: matchIndex, score: maxSim };
+                });
 
-            for(let i=0; i<facesDB.length; i++) {
-                if(!facesDB[i].embedding) continue;
-                const dbTensor = tf.tensor(facesDB[i].embedding);
-                
-                // Cosine Similarity
-                const dot = embedding.mul(dbTensor).sum();
-                const normA = embedding.norm();
-                const normB = dbTensor.norm();
-                const sim = dot.div(normA.mul(normB)).dataSync()[0];
-                
-                if(sim > maxSim) {
-                    maxSim = sim;
-                    bestMatch = i;
+                if (bestMatch && bestMatch.score > 0.85) { // Threshold
+                    const p = facesDB[bestMatch.index];
+                    result = { 
+                        name: `ID: ${p.name.toUpperCase()}`, 
+                        rel: `ACCESS: ${p.rel.toUpperCase()}`, 
+                        color: "#00FF00" 
+                    };
+                    sfx('click'); // Success sound
                 }
             }
 
-            // Clean up tensors
-            videoTensor.dispose(); faceTensor.dispose(); resized.dispose(); embedding.dispose();
-
-            // Threshold (MobileNet raw embeddings aren't perfect for faces, so we use a loose threshold for demo)
-            // Real face matching typically uses FaceNet/ResNet. MobileNet generic features ~0.85 is decent.
-            if(maxSim > 0.85) {
-                const p = facesDB[bestMatch];
-                result = { 
-                    name: `ID: ${p.name.toUpperCase()}`, 
-                    rel: `ACCESS: ${p.rel.toUpperCase()}`, 
-                    color: "#00FF00" // Green for Admin/Known
-                };
+            currentIdentity = result;
+            isAnalyzing = false;
+            
+            // Update status text
+            if(result.color === "#00FF00") {
+                document.getElementById('vision-status').innerText = "IDENTITY VERIFIED";
+                document.getElementById('vision-status').style.color = "#00FF00";
+            } else {
+                document.getElementById('vision-status').innerText = "UNKNOWN SUBJECT";
+                document.getElementById('vision-status').style.color = "#FF0000";
             }
-
-            return result;
         }
 
         function drawMenu() {
@@ -758,6 +803,8 @@
             // Extract Embedding for Save
             if(isModelLoaded) {
                 document.getElementById('signature-status').innerText = "ANALYZING FACE GEOMETRY...";
+                document.getElementById('signature-status').style.color = "#FFA500";
+                
                 const predictions = await faceModel.estimateFaces(cvs, false);
                 if(predictions.length > 0) {
                     const startX = predictions[0].topLeft[0];
@@ -765,14 +812,16 @@
                     const width = predictions[0].bottomRight[0] - startX;
                     const height = predictions[0].bottomRight[1] - startY;
                     
-                    const tensor = tf.browser.fromPixels(cvs);
-                    const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
-                    const resized = tf.image.resizeBilinear(faceT, [224, 224]);
+                    tf.tidy(() => {
+                        const tensor = tf.browser.fromPixels(cvs);
+                        const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
+                        const resized = tf.image.resizeBilinear(faceT, [224, 224]);
+                        
+                        // Extract and sync
+                        const resultTensor = recogModel.infer(resized, true);
+                        pendingEmbedding = resultTensor.arraySync();
+                    });
                     
-                    // Save embedding
-                    pendingEmbedding = (await recogModel.infer(resized, true)).arraySync(); // Store as array
-                    
-                    tensor.dispose(); faceT.dispose(); resized.dispose();
                     document.getElementById('signature-status').innerText = "BIOMETRIC SIGNATURE ACQUIRED";
                     document.getElementById('signature-status').style.color = "#00FF00";
                     document.getElementById('btn-save-id').disabled = false;
@@ -816,7 +865,6 @@
             const img = document.getElementById('db-preview').src;
             if(!name || !pendingEmbedding) return;
             
-            // Save Image AND Embedding
             facesDB.push({ name, rel, img, embedding: pendingEmbedding });
             localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
             speak("Identity confirmed and encrypted.");
@@ -830,6 +878,13 @@
             facesDB.forEach(p => {
                 list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`;
             });
+        }
+        
+        function clearDB() {
+            facesDB = [];
+            localStorage.removeItem('jarvis_faces');
+            loadFaceDB();
+            speak("Database wiped.");
         }
 
         /* --- INPUT --- */
