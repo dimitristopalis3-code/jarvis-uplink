@@ -39,24 +39,19 @@
             flex-direction: column; align-items: center; justify-content: center;
         }
 
-        /* Video Feed Layer */
         #vision-feed-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 10; background: #000;
         }
         
-        #local-vision-feed {
-            width: 100%; height: 100%; object-fit: cover;
-        }
+        #local-vision-feed { width: 100%; height: 100%; object-fit: cover; }
         #local-vision-feed.mirrored { transform: scaleX(-1); }
 
-        /* AR Overlay Canvas */
         #vision-ar-canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 20; pointer-events: none;
         }
 
-        /* Vision UI Controls */
         .vision-controls-bar {
             position: absolute; bottom: 40px; width: 100%;
             display: flex; justify-content: center; gap: 20px; pointer-events: auto; z-index: 50;
@@ -81,7 +76,6 @@
             padding-top: max(10px, var(--safe-top));
             padding-bottom: max(10px, var(--safe-bottom));
         }
-        
         .hud-top {
             height: 60px; border-bottom: 2px solid var(--primary);
             display: flex; align-items: center; justify-content: center;
@@ -89,9 +83,7 @@
         }
         .compass-tape { display: flex; gap: 60px; font-size: 22px; font-weight: bold; transition: transform 0.1s linear; color: var(--primary); will-change: transform; }
         .compass-marker { position: absolute; bottom: 0; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 12px solid var(--primary); z-index: 5; }
-
         .hud-mid { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-
         .horizon-line {
             position: absolute; width: 150vw; height: 2px;
             background: var(--primary); box-shadow: 0 0 10px var(--primary);
@@ -101,18 +93,15 @@
             content: ''; position: absolute; top: -100px; left: 0; width: 100%; height: 200px;
             background: repeating-linear-gradient(transparent, transparent 49px, rgba(0,229,255,0.2) 50px); pointer-events: none;
         }
-
         .hud-crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 200px; height: 60px; z-index: 10; display: flex; justify-content: center; align-items: center;
         }
         .wing-left, .wing-right { width: 60px; height: 4px; background: var(--primary); border: 1px solid #000; }
         .wing-center { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); margin: 0 5px; }
-
         .speed-overlay { position: absolute; top: 15%; width: 100%; text-align: center; text-shadow: 0 0 10px #000; z-index: 20; }
         .speed-val { font-size: 100px; font-weight: 900; font-family: 'Orbitron'; color: #fff; text-shadow: 0 0 20px var(--primary); line-height: 1; }
         .speed-unit { font-size: 18px; letter-spacing: 5px; color: var(--primary); font-weight: bold; }
-
         .hud-bot {
             height: 80px; display: flex; justify-content: space-between; align-items: center;
             padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9); flex-shrink: 0;
@@ -154,7 +143,6 @@
         }
         #playlist-container::-webkit-scrollbar { width: 5px; }
         #playlist-container::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 2px; }
-        
         .track-item {
             padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
             font-family: 'Share Tech Mono'; font-size: 14px; color: #888; transition: all 0.2s;
@@ -208,15 +196,13 @@
 
     <!-- VISION SYSTEM -->
     <div id="vision-container">
-        
         <!-- Video Feed Layer -->
         <div id="vision-feed-layer">
             <video id="local-vision-feed" autoplay playsinline muted></video>
         </div>
-
         <!-- AR Graphics Layer -->
         <canvas id="vision-ar-canvas"></canvas>
-
+        
         <div id="cam-error-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; display:none; z-index: 100;">
             <i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST
         </div>
@@ -308,15 +294,19 @@
         let isRecording = false;
 
         // AI Models
-        let faceModel = null; // BlazeFace
-        let recogModel = null; // MobileNet
+        let faceModel = null;
+        let recogModel = null;
         let isModelLoaded = false;
         let pendingEmbedding = null;
         
-        // Analysis State
-        let isAnalyzing = false;
-        let analysisTimer = 0;
-        let currentIdentity = null; // Stores result for a few seconds
+        // --- TACTICAL TRACKING STATE (The "Hysteresis" Logic) ---
+        let lockedTarget = {
+            active: false,
+            x: 0, y: 0,
+            identity: null,
+            lastSeen: 0,
+            color: "#888888"
+        };
 
         const menuItems = [
             { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, 
@@ -333,25 +323,20 @@
             
             // Load Neural Networks
             try {
-                // Load BlazeFace (Detection)
                 faceModel = await blazeface.load();
-                // Load MobileNet (Feature Extraction/Recognition)
                 recogModel = await mobilenet.load();
-                
                 isModelLoaded = true;
                 document.getElementById('model-status').innerText = "SYSTEM READY";
                 document.getElementById('model-status').style.color = "#00E5FF";
                 setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 1000);
             } catch (e) {
-                console.error("Model Error", e);
-                document.getElementById('model-status').innerText = "AI ERROR: CHECK INTERNET";
+                console.error(e);
+                document.getElementById('model-status').innerText = "AI FAILED. CHECK NETWORK.";
                 document.getElementById('model-status').style.color = "red";
-                // Allow start anyway
                 setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 3000);
             }
 
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
-            
             const player = document.getElementById('audio-player');
             player.onended = playNextTrack;
 
@@ -376,9 +361,13 @@
             canvas.width = width; canvas.height = height;
             centerX = width / 2; centerY = height / 2;
             scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25);
-            
             const arCvs = document.getElementById('vision-ar-canvas');
             arCvs.width = width; arCvs.height = height;
+        }
+
+        // SMOOTHING FUNCTION (LERP)
+        function lerp(start, end, amt) {
+            return (1 - amt) * start + amt * end;
         }
 
         function drawReactor(context, x, y, r, t, isBg, colorOverride) {
@@ -390,52 +379,25 @@
             if(isBg) context.clearRect(0,0, width, height); 
             context.translate(x, y);
 
-            // 1. Turbine Ring
             context.save(); context.rotate(t * 0.0005); 
-            for (let i = 0; i < 60; i++) {
-                context.rotate(Math.PI * 2 / 60); context.beginPath(); 
-                context.moveTo(r*1.0,0); context.lineTo(r*1.1,0);
-                context.strokeStyle = mainColor; context.lineWidth = 1; context.stroke();
-            }
+            for (let i = 0; i < 60; i++) { context.rotate(Math.PI * 2 / 60); context.beginPath(); context.moveTo(r*1.0,0); context.lineTo(r*1.1,0); context.strokeStyle = mainColor; context.lineWidth = 1; context.stroke(); }
             context.restore();
 
-            // 2. Outer Containment
-            context.save(); context.rotate(-t * 0.001);
-            context.lineWidth = r * 0.12; context.strokeStyle = secondaryColor;
-            for(let j=0; j<3; j++) {
-                context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke();
-                context.rotate(Math.PI*2/3);
-            }
+            context.save(); context.rotate(-t * 0.001); context.lineWidth = r * 0.12; context.strokeStyle = secondaryColor;
+            for(let j=0; j<3; j++) { context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke(); context.rotate(Math.PI*2/3); }
             context.restore();
 
-            // 3. Inner Ring
-            context.save(); context.rotate(t * 0.002);
-            context.strokeStyle = mainColor; context.lineWidth = 2;
-            context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke();
+            context.save(); context.rotate(t * 0.002); context.strokeStyle = mainColor; context.lineWidth = 2; context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke(); context.restore();
+
+            context.save(); context.rotate(-t * 0.003); context.lineWidth = r * 0.1; context.strokeStyle = mainColor;
+            for(let l=0; l<2; l++) { context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); context.rotate(Math.PI); }
             context.restore();
 
-            // 4. Core Segments
-            context.save(); context.rotate(-t * 0.003);
-            context.lineWidth = r * 0.1; context.strokeStyle = mainColor;
-            for(let l=0; l<2; l++) {
-                context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke();
-                context.rotate(Math.PI);
-            }
-            context.restore();
-
-            // 5. Plasma Ring (Orange)
             if(!colorOverride) {
-                context.save(); context.rotate(t * 0.01);
-                context.lineWidth = 6; context.strokeStyle = orange; context.shadowColor = orange; context.shadowBlur = 15;
-                context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke();
-                context.restore();
+                context.save(); context.rotate(t * 0.01); context.lineWidth = 6; context.strokeStyle = orange; context.shadowColor = orange; context.shadowBlur = 15; context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke(); context.restore();
             }
 
-            // 6. White Core
-            context.save(); context.rotate(t * 0.02);
-            context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10;
-            context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke();
-            context.restore();
+            context.save(); context.rotate(t * 0.02); context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10; context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke(); context.restore();
         }
 
         // TACTICAL TRACKING MINI REACTOR
@@ -443,22 +405,18 @@
             ctx.save();
             ctx.translate(x, y);
 
-            // Layer 1: Inner (3 Arcs, CW)
             ctx.save(); ctx.rotate(t * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2;
             for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, 1.5); ctx.stroke(); ctx.rotate((Math.PI * 2) / 3); }
             ctx.restore();
 
-            // Layer 2: Middle (2 Arcs, CCW)
             ctx.save(); ctx.rotate(-t * 0.015); ctx.strokeStyle = color; ctx.lineWidth = 2;
             for(let i=0; i<2; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI); }
             ctx.restore();
 
-            // Layer 3: Outer (Thick, Slow)
             ctx.save(); ctx.rotate(t * 0.005); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.globalAlpha = 0.6;
             ctx.beginPath(); ctx.arc(0, 0, r * 1.0, 0, Math.PI*2); ctx.stroke();
             ctx.restore();
 
-            // Status Text Line
             ctx.save();
             ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 150, -30);
             ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
@@ -476,7 +434,7 @@
         async function draw() {
             if(hudActive) { animationFrame = requestAnimationFrame(draw); return; }
 
-            // BG Reactor (Main Menu)
+            // BG Reactor
             if(!visionActive) {
                 drawReactor(ctx, centerX, centerY, scale, time, true);
                 ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`;
@@ -493,64 +451,65 @@
                 arCtx.setTransform(1,0,0,1,0,0);
                 arCtx.clearRect(0,0, arCvs.width, arCvs.height);
                 
-                // Draw Center Mark III (Static)
+                // Static Center Reactor
                 drawReactor(arCtx, centerX, centerY, scale, time, false);
 
-                // Run Detection
                 if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
                     const video = document.getElementById('local-vision-feed');
+                    
                     try {
-                        // 1. Detect Faces
                         const predictions = await faceModel.estimateFaces(video, false);
                         
                         if (predictions.length > 0) {
+                            // Target Found
+                            const pred = predictions[0]; // Focus on primary face
                             
-                            // Process each face
-                            for (let pred of predictions) {
-                                // Calculate Screen Coords
-                                const vidW = video.videoWidth; const vidH = video.videoHeight;
-                                const cvsW = arCvs.width; const cvsH = arCvs.height;
-                                const scaleX = cvsW / vidW; const scaleY = cvsH / vidH;
-                                const fitScale = Math.max(scaleX, scaleY);
-                                const xOffset = (cvsW - vidW * fitScale) / 2;
-                                const yOffset = (cvsH - vidH * fitScale) / 2;
+                            // Calc Center
+                            const vidW = video.videoWidth; const vidH = video.videoHeight;
+                            const cvsW = arCvs.width; const cvsH = arCvs.height;
+                            const scaleFit = Math.max(cvsW / vidW, cvsH / vidH);
+                            const xOff = (cvsW - vidW * scaleFit) / 2;
+                            const yOff = (cvsH - vidH * scaleFit) / 2;
 
-                                const startX = pred.topLeft[0]; const startY = pred.topLeft[1];
-                                const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
-                                
-                                const faceX = (startX * fitScale) + xOffset + ((endX - startX) * fitScale / 2);
-                                const faceY = (startY * fitScale) + yOffset + ((endY - startY) * fitScale / 2);
-                                
-                                let drawX = faceX;
-                                if (camFacingMode === 'user') drawX = cvsW - faceX;
+                            const startX = pred.topLeft[0]; const startY = pred.topLeft[1];
+                            const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
+                            const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2);
+                            const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
+                            
+                            let targetX = faceX;
+                            if (camFacingMode === 'user') targetX = cvsW - faceX;
 
-                                // --- ASYNC RECOGNITION THROTTLE ---
-                                // Only run recognition if not currently busy, to prevent hang
-                                if (!isAnalyzing) {
-                                    // Trigger analysis
-                                    analyzeFace(video, pred);
-                                }
-
-                                // Use current Identity state for drawing
-                                let displayName = "ANALYZING...";
-                                let displayRel = "SCANNING...";
-                                let displayColor = "#FFA500"; // Orange while thinking
-
-                                if (currentIdentity) {
-                                    displayName = currentIdentity.name;
-                                    displayRel = currentIdentity.rel;
-                                    displayColor = currentIdentity.color;
-                                }
-
-                                drawTacticalHUD(arCtx, drawX, faceY, 60, time*2, displayColor, displayName, displayRel);
+                            // LERP Movement (Smoothness)
+                            if (!lockedTarget.active) {
+                                lockedTarget.x = targetX;
+                                lockedTarget.y = faceY;
+                                lockedTarget.active = true;
+                                lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" };
+                                // Trigger Analysis ONCE upon locking
+                                analyzeFace(video, pred);
+                            } else {
+                                lockedTarget.x = lerp(lockedTarget.x, targetX, 0.2); // Smooth Glide
+                                lockedTarget.y = lerp(lockedTarget.y, faceY, 0.2);
                             }
+                            
+                            lockedTarget.lastSeen = time; // Refresh timer
+
                         } else {
-                            // Reset if no faces
-                            currentIdentity = null;
-                            document.getElementById('vision-status').innerText = "SCANNING SECTOR...";
-                            document.getElementById('vision-status').style.color = "var(--primary)";
+                            // No Face Visible
+                            // Keep lock for 60 frames (approx 1-2 sec) before resetting
+                            if (time - lockedTarget.lastSeen > 60) {
+                                lockedTarget.active = false;
+                                document.getElementById('vision-status').innerText = "SCANNING SECTOR...";
+                                document.getElementById('vision-status').style.color = "var(--primary)";
+                            }
                         }
-                    } catch (err) { }
+
+                        // Draw Locked Target
+                        if (lockedTarget.active) {
+                            drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
+                        }
+
+                    } catch (err) {}
                 }
             }
 
@@ -559,38 +518,24 @@
         }
 
         async function analyzeFace(video, pred) {
-            isAnalyzing = true;
+            // Only run if we don't already have a high confidence lock
+            if (lockedTarget.identity.color === "#00FF00") return;
+
             document.getElementById('vision-status').innerText = "BIOMETRIC ANALYSIS...";
             
-            // Artificial delay to prevent CPU overload and show "working" state
-            // Also because TFJS tensors act weird if called every frame
-            await new Promise(r => setTimeout(r, 500)); 
-
-            // Extract Tensor
-            let result = { name: "UNKNOWN", rel: "ACCESS: DENIED", color: "#FF0000" };
-            
+            // Extract Tensor & Compare
             if (facesDB.length > 0) {
-                // We use tf.tidy to automatically clean up all tensors created in this scope
-                // This fixes the memory leak/hang issue
-                const bestMatch = tf.tidy(() => {
+                const result = tf.tidy(() => {
                     const startX = Math.max(0, pred.topLeft[0]);
                     const startY = Math.max(0, pred.topLeft[1]);
                     const width = pred.bottomRight[0] - startX;
                     const height = pred.bottomRight[1] - startY;
-
                     if (width <= 0 || height <= 0) return null;
 
                     const videoTensor = tf.browser.fromPixels(video);
                     const faceTensor = videoTensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
-                    const resized = tf.image.resizeBilinear(faceTensor, [224, 224]); 
-                    
-                    // Normalize? MobileNet expects [-1, 1] or [0, 1]? 
-                    // tf.browser.fromPixels is [0, 255]. mobilenet typically wants float.
-                    // But we used raw for training, so use raw for compare.
-                    
-                    // Infer
-                    // Note: This 'infer' call on mobilenet takes time.
-                    const embedding = recogModel.infer(resized, true); 
+                    const resized = tf.image.resizeBilinear(faceTensor, [224, 224]);
+                    const embedding = recogModel.infer(resized, true);
                     
                     let maxSim = -1;
                     let matchIndex = -1;
@@ -598,43 +543,34 @@
                     for(let i=0; i<facesDB.length; i++) {
                         if(!facesDB[i].embedding) continue;
                         const dbTensor = tf.tensor(facesDB[i].embedding);
-                        
-                        // Cosine Sim: (A . B) / (||A|| * ||B||)
                         const dot = embedding.mul(dbTensor).sum();
                         const normA = embedding.norm();
                         const normB = dbTensor.norm();
                         const sim = dot.div(normA.mul(normB)).dataSync()[0];
-                        
-                        if(sim > maxSim) {
-                            maxSim = sim;
-                            matchIndex = i;
-                        }
+                        if(sim > maxSim) { maxSim = sim; matchIndex = i; }
                     }
-                    
                     return { index: matchIndex, score: maxSim };
                 });
 
-                if (bestMatch && bestMatch.score > 0.85) { // Threshold
-                    const p = facesDB[bestMatch.index];
-                    result = { 
+                if (result && result.score > 0.82) { // Slightly lower threshold for mobile stability
+                    const p = facesDB[result.index];
+                    lockedTarget.identity = { 
                         name: `ID: ${p.name.toUpperCase()}`, 
                         rel: `ACCESS: ${p.rel.toUpperCase()}`, 
                         color: "#00FF00" 
                     };
-                    sfx('click'); // Success sound
+                    document.getElementById('vision-status').innerText = "IDENTITY VERIFIED";
+                    document.getElementById('vision-status').style.color = "#00FF00";
+                    sfx('click');
+                } else {
+                    // Confirmed Unknown
+                    lockedTarget.identity = { name: "UNKNOWN", rel: "ACCESS: DENIED", color: "#FF0000" };
+                    document.getElementById('vision-status').innerText = "UNKNOWN SUBJECT";
+                    document.getElementById('vision-status').style.color = "#FF0000";
                 }
-            }
-
-            currentIdentity = result;
-            isAnalyzing = false;
-            
-            // Update status text
-            if(result.color === "#00FF00") {
-                document.getElementById('vision-status').innerText = "IDENTITY VERIFIED";
-                document.getElementById('vision-status').style.color = "#00FF00";
             } else {
-                document.getElementById('vision-status').innerText = "UNKNOWN SUBJECT";
-                document.getElementById('vision-status').style.color = "#FF0000";
+                // No DB
+                lockedTarget.identity = { name: "UNKNOWN", rel: "NO DATABASE", color: "#FF0000" };
             }
         }
 
