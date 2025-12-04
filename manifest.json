@@ -1,8 +1,8 @@
 {
   "name": "JARVIS",
   "short_name": "JARVIS",
-  "start_url": "./index.html",
-  "id": "/jarvis-uplink/",
+  "start_url": "/jarvis-uplink/",
+  "scope": "/jarvis-uplink/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
