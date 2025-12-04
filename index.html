@@ -291,13 +291,21 @@
         let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
         let isAnalyzing = false;
 
-        // MENU CONFIG (5 Items)
+        // MENU CONFIG 
+        // Note: Removed "Comms" from main ring. Media angle remains.
         const menuItems = [
-            { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.8 }, 
+            { id: 'media', label: 'MEDIA', icon: 'fa-folder', target: 'sub-toggle', angle: -Math.PI * 0.8 }, 
             { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.4 }, 
             { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: Math.PI * 0.4 },
-            { id: 'hud', label: 'HUD', icon: 'fa-motorcycle', target: 'hud-launch', angle: Math.PI * 0.8 },
-            { id: 'comms', label: 'COMMS', icon: 'fa-comments', target: 'modal-comms', angle: Math.PI } // 9 o'clock position
+            { id: 'hud', label: 'HUD', icon: 'fa-motorcycle', target: 'hud-launch', angle: Math.PI * 0.8 }
+        ];
+
+        // SUB-MENU STATE
+        let mediaSubMenuOpen = false;
+        const subMenuItems = [
+            // Inner ring buttons appearing when Media is active
+            { id: 'sub-player', label: 'PLAYER', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.95 },
+            { id: 'sub-comms', label: 'COMMS', icon: 'fa-comments', target: 'modal-comms', angle: -Math.PI * 0.65 }
         ];
 
         /* --- INDEXED DB --- */
@@ -321,7 +329,22 @@
         }
         function requestFullScreen() { const doc = document.documentElement; if (doc.requestFullscreen) doc.requestFullscreen(); else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen(); }
         window.addEventListener('resize', resize);
-        function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; centerX = width / 2; centerY = height / 2; scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25); const arCvs = document.getElementById('vision-ar-canvas'); arCvs.width = width; arCvs.height = height; }
+        
+        // SCALING MODIFIED HERE (Reduced scale factor for tighter UI)
+        function resize() { 
+            width = window.innerWidth; 
+            height = window.innerHeight; 
+            canvas.width = width; 
+            canvas.height = height; 
+            centerX = width / 2; 
+            centerY = height / 2; 
+            // Scaled down from 0.40 to 0.35 for mobile
+            scale = Math.min(width, height) * (width < 768 ? 0.35 : 0.22); 
+            const arCvs = document.getElementById('vision-ar-canvas'); 
+            arCvs.width = width; 
+            arCvs.height = height; 
+        }
+        
         function lerp(s, e, a) { return (1 - a) * s + a * e; }
 
         function drawReactor(context, x, y, r, t, isBg, colorOverride) {
@@ -410,13 +433,51 @@
         }
 
         function drawMenu() {
+            // MAIN RING
             menuItems.forEach(item => {
-                const outerR = scale * 1.6; const innerR = scale * 1.35; const angleWidth = 0.25; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
-                ctx.save(); ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
-                ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke();
-                const midR = (outerR + innerR) / 2; const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
-                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.08}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(item.label, txtX, txtY); ctx.restore();
+                const outerR = scale * 1.6; const innerR = scale * 1.35; 
+                const angleWidth = 0.25; 
+                const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
+                
+                ctx.save(); ctx.beginPath(); 
+                ctx.arc(0, 0, outerR, startAngle, endAngle); 
+                ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
+                
+                // Highlight Media button if sub-menu is open
+                if (item.target === 'sub-toggle' && mediaSubMenuOpen) ctx.fillStyle = "rgba(0, 229, 255, 0.3)";
+                else ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; 
+                
+                ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke();
+                
+                const midR = (outerR + innerR) / 2; 
+                const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
+                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.08}px Orbitron`; 
+                ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+                ctx.fillText(item.label, txtX, txtY); ctx.restore();
             });
+
+            // SUB MENU (Visual "Inside" Media)
+            if (mediaSubMenuOpen) {
+                subMenuItems.forEach(item => {
+                    // Inner ring dimensions
+                    const outerR = scale * 1.3; const innerR = scale * 1.05; 
+                    const angleWidth = 0.15; 
+                    const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
+
+                    ctx.save(); ctx.beginPath(); 
+                    ctx.arc(0, 0, outerR, startAngle, endAngle); 
+                    ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
+                    
+                    ctx.fillStyle = "rgba(0, 40, 60, 0.9)"; 
+                    ctx.fill(); ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.stroke();
+                    
+                    const midR = (outerR + innerR) / 2; 
+                    const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
+                    ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${scale * 0.06}px Orbitron`; 
+                    ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+                    ctx.fillText(item.label, txtX, txtY); ctx.restore();
+                });
+            }
         }
 
         /* --- UTILS --- */
@@ -440,7 +501,50 @@
         function loadFaceDB() { const list = document.getElementById('db-list'); list.innerHTML = ""; facesDB.forEach(p => { list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`; }); }
         function clearDB() { facesDB = []; localStorage.removeItem('jarvis_faces'); loadFaceDB(); speak("Database wiped."); }
         function launchApp(url) { window.open(url, '_blank'); speak("Establishing uplink."); }
-        function handleInput(e) { if(hudActive || visionActive || document.querySelector('.modal-window.active')) return; touchActive = e.type === 'touchstart'; const cx = touchActive ? e.touches[0].clientX : e.clientX; const cy = touchActive ? e.touches[0].clientY : e.clientY; const rect = canvas.getBoundingClientRect(); const dx = cx - (rect.left + centerX); const dy = cy - (rect.top + centerY); const dist = Math.sqrt(dx*dx + dy*dy); const angle = Math.atan2(dy, dx); if (dist > scale * 1.3 && dist < scale * 1.7) { menuItems.forEach(item => { let diff = angle - item.angle; while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2; if (Math.abs(diff) < 0.3) { e.preventDefault(); sfx('click'); if(item.target === 'vision-toggle') toggleVision(); else if(item.target === 'hud-launch') activateHUD(); else openModal(item.target); } }); } else if (dist < scale * 0.4) toggleVoiceInput(); }
+        
+        function handleInput(e) { 
+            if(hudActive || visionActive || document.querySelector('.modal-window.active')) return; 
+            touchActive = e.type === 'touchstart'; 
+            const cx = touchActive ? e.touches[0].clientX : e.clientX; 
+            const cy = touchActive ? e.touches[0].clientY : e.clientY; 
+            const rect = canvas.getBoundingClientRect(); 
+            const dx = cx - (rect.left + centerX); 
+            const dy = cy - (rect.top + centerY); 
+            const dist = Math.sqrt(dx*dx + dy*dy); 
+            const angle = Math.atan2(dy, dx); 
+
+            // MAIN RING DETECTION
+            if (dist > scale * 1.35 && dist < scale * 1.6) { 
+                menuItems.forEach(item => { 
+                    let diff = angle - item.angle; 
+                    while(diff < -Math.PI) diff += Math.PI*2; 
+                    while(diff > Math.PI) diff -= Math.PI*2; 
+                    if (Math.abs(diff) < 0.25) { 
+                        e.preventDefault(); 
+                        sfx('click'); 
+                        if(item.target === 'vision-toggle') toggleVision(); 
+                        else if(item.target === 'hud-launch') activateHUD();
+                        else if(item.target === 'sub-toggle') { mediaSubMenuOpen = !mediaSubMenuOpen; } // Toggle Sub-menu
+                        else openModal(item.target); 
+                    } 
+                }); 
+            }
+            // SUB MENU DETECTION (Inside Ring)
+            else if (dist > scale * 1.05 && dist < scale * 1.3 && mediaSubMenuOpen) {
+                subMenuItems.forEach(item => {
+                    let diff = angle - item.angle; 
+                    while(diff < -Math.PI) diff += Math.PI*2; 
+                    while(diff > Math.PI) diff -= Math.PI*2; 
+                    if (Math.abs(diff) < 0.15) { 
+                        e.preventDefault(); sfx('click'); 
+                        openModal(item.target); 
+                    }
+                });
+            }
+            // VOICE TOGGLE (Center)
+            else if (dist < scale * 0.4) toggleVoiceInput(); 
+        }
+
         let touchActive = false; window.addEventListener('touchstart', handleInput, {passive: false}); window.addEventListener('mousedown', (e) => { if(!touchActive) handleInput(e); });
         function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
@@ -452,5 +556,4 @@
     </script>
 </body>
 </html>
-
 
