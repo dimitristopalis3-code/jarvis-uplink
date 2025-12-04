@@ -2,40 +2,57 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Security & PWA Settings -->
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#050a14">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    
+    <!-- Android/iOS Native Feel -->
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
+    
     <title>JARVIS: MOBILE UNIT</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="manifest" href="manifest.json">
     
     <style>
-        /* --- CORE MOBILE STYLES --- */
-        * { -webkit-tap-highlight-color: transparent; user-select: none; box-sizing: border-box; touch-action: none; }
-        html { background: #050a14; height: 100%; }
-        body { 
-            margin: 0; overflow: hidden; 
-            background-color: #050a14; 
+        /* --- CORE SYSTEM STYLES --- */
+        :root {
+            --primary: #00E5FF;
+            --secondary: rgba(0, 229, 255, 0.15);
+            --bg-color: #000000; /* OLED Black */
+            --alert: #FFA500;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        * { 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            box-sizing: border-box; 
+            outline: none;
+        }
+
+        html, body { 
+            margin: 0; padding: 0;
+            overflow: hidden; 
+            background-color: var(--bg-color); 
             font-family: 'Orbitron', sans-serif; 
-            color: #00E5FF; 
+            color: var(--primary); 
             height: 100vh; width: 100vw; 
             display: flex; justify-content: center; align-items: center; 
+            touch-action: none; 
+            overscroll-behavior: none; 
         }
         
-        /* REACTOR CONTAINER - HIGH CONTRAST */
+        /* REACTOR BACKGROUND */
         #reactor-container { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 1; 
-            opacity: 1.0; /* FULL VISIBILITY */
-            /* Dark edges, clear center for reactor to shine */
-            background: radial-gradient(circle, rgba(0,0,0,0) 30%, rgba(5, 10, 20, 0.8) 90%); 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 100vw; height: 100vh; z-index: 0; 
+            opacity: 0.8; 
             pointer-events: none; 
         }
         canvas { display: block; }
@@ -43,478 +60,739 @@
         /* CORE VISION OVERLAY */
         #core-vision-overlay {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            border-radius: 50%; overflow: hidden; z-index: 10; 
-            display: none; background: #000; border: 2px solid #00E5FF;
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.8);
-            pointer-events: auto;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        #core-vision-overlay.core-expanded {
-            width: 90vw !important; height: 90vw !important;
-            border: 4px solid #FFA500; 
-            box-shadow: 0 0 80px rgba(255, 165, 0, 0.6);
-            z-index: 100; border-radius: 20px;
-        }
-        #core-vision-overlay video { width: 100%; height: 100%; object-fit: cover; }
-        
-        .vision-controls {
-            position: absolute; bottom: 10px; left: 0; width: 100%;
-            display: flex; justify-content: center; gap: 20px; pointer-events: none;
-        }
-        .vision-btn {
-            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #00E5FF; color: #00E5FF;
-            border-radius: 50%; width: 45px; height: 45px;
-            display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px;
+            border-radius: 50%; overflow: hidden; z-index: 5; 
+            display: none; background: #000; border: 2px solid var(--primary);
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5); pointer-events: auto;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        /* UI OVERLAYS */
-        #overlay-text { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #00bcd4; font-size: 10px; opacity: 0.8; z-index: 5; pointer-events: none; }
-        #mic-status { position: absolute; top: 30px; width: 100%; text-align: center; color: rgba(0, 229, 255, 0.9); font-size: 12px; letter-spacing: 3px; z-index: 5; font-weight: 700; pointer-events: none; }
+        #core-vision-overlay.core-expanded {
+            width: 95vw !important; height: 80vh !important; border-radius: 20px;
+            border: 2px solid var(--alert); box-shadow: 0 0 50px rgba(255, 165, 0, 0.4);
+            z-index: 200; background: rgba(0,0,0,0.9);
+        }
+
+        #core-vision-overlay img, #core-vision-overlay video { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* VISION CONTROLS */
+        .vision-controls {
+            position: absolute; bottom: 20px; left: 0; width: 100%;
+            display: flex; justify-content: center; gap: 20px;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s;
+        }
+        #core-vision-overlay.core-expanded .vision-controls { opacity: 1; }
+        
+        .vision-btn {
+            pointer-events: auto; background: rgba(0,0,0,0.8); border: 1px solid var(--primary);
+            color: var(--primary); border-radius: 50%; width: 50px; height: 50px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 20px; box-shadow: 0 0 15px rgba(0,229,255,0.2);
+        }
+
+        /* STATUS OVERLAYS */
+        #overlay-text { 
+            position: absolute; bottom: calc(20px + var(--safe-bottom)); 
+            width: 100%; text-align: center; color: var(--primary); 
+            font-size: 10px; opacity: 0.6; z-index: 2; pointer-events: none; 
+            font-family: 'Share Tech Mono', monospace;
+        }
+        #mic-status { 
+            position: absolute; top: calc(20px + var(--safe-top)); 
+            width: 100%; text-align: center; color: rgba(0, 229, 255, 0.8); 
+            font-size: 12px; letter-spacing: 3px; z-index: 2; font-weight: 700; 
+            pointer-events: none; text-shadow: 0 0 5px var(--primary);
+        }
         
         /* INIT OVERLAY */
-        #start-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 10, 20, 0.98); z-index: 9999;
+        #start-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000000; z-index: 9999; 
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            pointer-events: auto;
         }
         #start-btn { 
-            padding: 20px 40px; border: 2px solid #00E5FF; background: rgba(0, 229, 255, 0.1); 
-            color: #00E5FF; font-family: 'Orbitron'; font-size: 20px; font-weight: 900; letter-spacing: 2px; 
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5); 
+            padding: 20px 40px; border: 1px solid var(--primary); 
+            background: rgba(0, 229, 255, 0.05); color: var(--primary); 
+            font-family: 'Orbitron'; font-size: 18px; font-weight: 900; 
+            letter-spacing: 2px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+            animation: pulse 2s infinite;
         }
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; border-color: #fff; } 100% { opacity: 0.8; } }
 
-        /* WINDOWS */
+        /* MODALS */
         .modal-window { 
-            position: absolute; background: rgba(10, 15, 25, 0.95); border: 1px solid #00E5FF; 
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.3); backdrop-filter: blur(15px); padding: 0; 
-            display: none; flex-direction: column; z-index: 50; pointer-events: auto;
-            width: 95%; height: 85%; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(5, 8, 12, 0.98); 
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            z-index: 100; pointer-events: auto;
+            display: flex; flex-direction: column;
+            transform: translateY(110%);
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
         }
-        .modal-header { background: rgba(0, 229, 255, 0.15); padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00E5FF; flex-shrink: 0; }
-        .modal-title { font-size: 14px; font-weight: bold; text-shadow: 0 0 5px #00E5FF; }
-        .close-btn { font-size: 24px; padding: 0 10px; color: #00E5FF; }
-        .modal-body { flex: 1; padding: 15px; overflow-y: auto; color: #ccc; display: flex; flex-direction: column; gap: 10px; }
+        .modal-window.active { transform: translateY(0); }
+
+        .modal-header { 
+            padding: 20px; display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid rgba(0, 229, 255, 0.3); background: rgba(0, 20, 30, 0.5);
+        }
+        .modal-title { font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #fff; }
+        .close-btn { 
+            font-size: 24px; width: 40px; height: 40px; 
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary); cursor: pointer; 
+        }
+        .modal-body { flex: 1; padding: 20px; overflow-y: auto; color: #ccc; display: flex; flex-direction: column; gap: 15px; }
 
         /* INPUTS & BUTTONS */
-        .input-group { display: flex; gap: 5px; flex-shrink: 0; }
-        input[type="text"], select { 
-            background: rgba(0, 20, 30, 0.9); border: 1px solid #00E5FF; color: #00E5FF; 
-            padding: 10px; flex: 1; outline: none; font-family: 'Orbitron'; font-size: 16px; min-height: 40px; 
+        .input-group { display: flex; gap: 10px; margin-top: auto; }
+        input[type="text"], input[type="password"] { 
+            background: rgba(10, 20, 30, 0.8); border: 1px solid #333; 
+            color: var(--primary); padding: 15px; flex: 1; outline: none; 
+            font-family: 'Share Tech Mono'; font-size: 16px; border-radius: 5px;
         }
         button { 
-            background: rgba(0, 229, 255, 0.1); color: #00E5FF; border: 1px solid #00E5FF; 
-            padding: 10px; font-family: 'Orbitron'; min-height: 44px; transition: 0.2s; 
+            background: rgba(0, 229, 255, 0.1); color: var(--primary); 
+            border: 1px solid var(--primary); padding: 15px; 
+            font-family: 'Orbitron'; font-weight: bold; cursor: pointer; 
+            transition: 0.2s; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
-        button:active { background: #00E5FF; color: #000; }
-
-        .chat-log { flex: 1; overflow-y: auto; margin-bottom: 10px; font-size: 12px; line-height: 1.4; font-family: 'Consolas', monospace; color: #aaa; }
-        .setting-row { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        button:active { background: var(--primary); color: #000; }
         
-        .mic-active { color: #FFA500 !important; text-shadow: 0 0 20px #FFA500; animation: pulse 1.5s infinite; }
+        /* CHAT */
+        .chat-log { 
+            flex: 1; overflow-y: auto; margin-bottom: 15px; 
+            font-size: 14px; line-height: 1.5; font-family: 'Share Tech Mono', monospace; 
+            color: #aaa; padding: 10px; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .msg-user { color: #fff; margin-bottom: 5px; display: block; }
+        .msg-sys { color: var(--primary); margin-bottom: 10px; display: block; border-left: 2px solid var(--primary); padding-left: 10px;}
+
+        /* SETTINGS ROWS */
+        .setting-row { 
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 15px; background: rgba(255,255,255,0.03); border-radius: 5px;
+        }
+        .setting-label { color: #ccc; font-size: 14px; font-weight: bold; }
+
+        /* --- MOTO HUD SPECIFIC STYLES --- */
+        #moto-hud {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000; z-index: 900;
+            display: none; flex-direction: column;
+            color: var(--primary);
+            font-family: 'Share Tech Mono', monospace;
+            padding: var(--safe-top) 0 var(--safe-bottom) 0;
+        }
+        
+        .hud-top-bar {
+            height: 60px; border-bottom: 2px solid var(--primary);
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            background: rgba(0, 229, 255, 0.05);
+        }
+        
+        .compass-tape {
+            font-size: 20px; font-weight: bold;
+            display: flex; gap: 40px;
+            transition: transform 0.1s linear;
+        }
+
+        .hud-main-display {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+
+        .speed-container {
+            text-align: center;
+            z-index: 2;
+        }
+        
+        .speed-val {
+            font-size: 120px; font-weight: 900;
+            font-family: 'Orbitron';
+            color: #fff;
+            text-shadow: 0 0 20px var(--primary);
+            line-height: 1;
+        }
+        
+        .speed-unit {
+            font-size: 24px; letter-spacing: 5px;
+            color: var(--primary); opacity: 0.8;
+        }
+
+        /* Lean Angle Indicators */
+        .lean-indicator {
+            position: absolute; top: 50%; width: 20px; height: 200px;
+            background: rgba(255,255,255,0.1); border: 1px solid #333;
+            transform: translateY(-50%);
+            display: flex; flex-direction: column-reverse;
+        }
+        .lean-left { left: 20px; }
+        .lean-right { right: 20px; }
+        .lean-bar-fill { width: 100%; background: var(--alert); transition: height 0.1s; }
+
+        .hud-bottom-bar {
+            height: 80px; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px; border-top: 1px solid #333;
+            background: rgba(0,0,0,0.8);
+        }
+        
+        .hud-btn-nav {
+            padding: 10px 20px; border: 1px solid var(--alert); color: var(--alert);
+            font-size: 14px; background: rgba(255, 165, 0, 0.1);
+        }
+        
+        .hud-time { font-size: 32px; font-weight: bold; color: #fff; }
+
     </style>
 </head>
 <body>
 
+    <!-- STARTUP -->
     <div id="start-overlay" onclick="initSystem()">
-        <div id="start-btn">INITIALIZE MOBILE</div>
-        <div style="margin-top: 15px; opacity: 0.8; font-size: 10px;">STANDALONE v73.0 (HIGH CONTRAST)</div>
+        <div style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-fingerprint"></i></div>
+        <div id="start-btn">INITIALIZE SYSTEM</div>
+        <div style="margin-top: 20px; opacity: 0.5; font-size: 10px; font-family: 'Share Tech Mono';">SECURE MOBILE TERMINAL</div>
     </div>
 
-    <!-- DIRECT CANVAS - Z-INDEX 1 -->
+    <!-- REACTOR -->
     <div id="reactor-container"><canvas id="reactor"></canvas></div>
     
-    <!-- INTEGRATED CORE VISION -->
-    <div id="core-vision-overlay" onclick="toggleCoreZoom()">
-        <video id="local-vision-feed" autoplay playsinline muted></video>
-        <div class="vision-controls">
-            <div class="vision-btn" onclick="event.stopPropagation(); switchCameraFacing()" title="Switch Cam"><i class="fas fa-sync-alt"></i></div>
-            <div class="vision-btn" onclick="event.stopPropagation(); toggleVisionMode()" title="Close"><i class="fas fa-times"></i></div>
+    <!-- HUD ELEMENTS -->
+    <div id="mic-status">OFFLINE</div>
+    <div id="overlay-text">WAITING FOR BIOMETRIC ENTRY</div>
+
+    <!-- MOTO HUD (New Feature) -->
+    <div id="moto-hud">
+        <div class="hud-top-bar">
+            <div class="compass-marker" style="position:absolute; bottom:0; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 10px solid var(--alert); z-index:10;"></div>
+            <div class="compass-tape" id="hud-compass">
+                <span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SW</span><span>W</span><span>NW</span><span>N</span>
+            </div>
+        </div>
+        
+        <div class="hud-main-display">
+            <!-- Left Lean -->
+            <div class="lean-indicator lean-left"><div class="lean-bar-fill" id="fill-left" style="height: 0%;"></div></div>
+            
+            <div class="speed-container">
+                <div class="speed-val" id="hud-speed">0</div>
+                <div class="speed-unit">KM/H</div>
+            </div>
+            
+            <!-- Right Lean -->
+            <div class="lean-indicator lean-right"><div class="lean-bar-fill" id="fill-right" style="height: 0%;"></div></div>
+        </div>
+        
+        <div class="hud-bottom-bar">
+            <button class="hud-btn-nav" onclick="closeHUD()"><i class="fas fa-times"></i> EXIT</button>
+            <div class="hud-time" id="hud-clock">00:00</div>
+            <button class="hud-btn-nav" onclick="launchMaps()"><i class="fas fa-location-arrow"></i> NAV</button>
         </div>
     </div>
 
-    <div id="mic-status">AWAITING INITIALIZATION</div>
-    <div id="overlay-text">SYSTEM ONLINE</div>
+    <!-- VISION MODULE -->
+    <div id="core-vision-overlay">
+        <img id="vision-feed" src="" style="display: block;" onerror="this.style.display='none';">
+        <video id="local-vision-feed" autoplay playsinline style="display: none; transform: scaleX(-1);"></video>
+        
+        <div class="vision-controls">
+            <div class="vision-btn" onclick="event.stopPropagation(); toggleCameraSource()"><i class="fas fa-sync-alt"></i></div>
+            <div class="vision-btn" onclick="event.stopPropagation(); closeVision()"><i class="fas fa-times"></i></div>
+        </div>
+    </div>
 
-    <!-- CHAT CONSOLE -->
+    <!-- MODAL: COMMAND -->
     <div id="modal-command" class="modal-window">
         <div class="modal-header">
-            <span class="modal-title">MAIN CONSOLE</span>
+            <span class="modal-title"><i class="fas fa-terminal"></i> MAIN CONSOLE</span>
             <span class="close-btn" onclick="closeModal('modal-command')">×</span>
         </div>
         <div class="modal-body">
-            <div class="chat-log" id="chat-log">> SYSTEM: HIGH CONTRAST ACTIVE.<br>> SYSTEM: READY.<br></div>
+            <div class="chat-log" id="chat-log">
+                <span class="msg-sys">SYSTEM INITIALIZED.<br>IDENTITY VERIFIED: DIMITRI (JIM).</span>
+            </div>
             <div class="input-group">
-                <input type="text" id="chat-input" placeholder="Ask Jarvis..." onkeydown="handleChat(event)">
-                <button onclick="toggleVoiceInput()"><i class="fas fa-microphone"></i></button>
+                <input type="text" id="chat-input" placeholder="Enter command..." onkeydown="handleChat(event)" autocomplete="off">
+                <button onclick="toggleVoiceInput()"><i id="mic-icon" class="fas fa-microphone"></i></button>
             </div>
         </div>
     </div>
 
-    <!-- SETTINGS -->
+    <!-- MODAL: SETTINGS -->
     <div id="modal-settings" class="modal-window">
         <div class="modal-header">
-            <span class="modal-title">SYSTEM CONFIG</span>
+            <span class="modal-title"><i class="fas fa-cog"></i> CONFIGURATION</span>
             <span class="close-btn" onclick="closeModal('modal-settings')">×</span>
         </div>
         <div class="modal-body">
-            <div class="setting-row"><span>GEMINI KEY</span><input type="password" id="api-key-input" onchange="saveApiKey(this.value)"></div>
-            <div class="setting-row"><span>VOICE</span><select id="voice-select" onchange="saveVoiceSelection(this)"></select></div>
-            <button onclick="testVoice()" style="width:100%; margin-top: auto;">TEST AUDIO</button>
+            <div class="setting-row">
+                <div class="setting-label">GEMINI API KEY</div>
+                <input type="password" id="api-key-input" onchange="saveApiKey(this.value)" style="width: 50%; text-align:right;">
+            </div>
+            
+            <div style="border-top: 1px solid #333; margin-top: 10px; padding-top: 20px;">
+                <button onclick="activateHUD()" style="width:100%; color: var(--alert); border-color: var(--alert);">
+                    <i class="fas fa-motorcycle"></i> ACTIVATE MOTO HUD
+                </button>
+            </div>
+
+            <button onclick="requestFullScreen()" style="margin-top:20px;">TOGGLE FULLSCREEN</button>
+        </div>
+    </div>
+
+    <!-- MODAL: MEDIA -->
+    <div id="modal-media" class="modal-window">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-music"></i> MEDIA LINK</span>
+            <span class="close-btn" onclick="closeModal('modal-media')">×</span>
+        </div>
+        <div class="modal-body">
+            <div style="text-align:center; padding: 20px; border: 1px solid #333; border-radius: 10px;">
+                <i class="fas fa-headphones-alt" style="font-size: 40px; color: #555;"></i>
+                <div id="now-playing" style="margin-top:10px; color:var(--primary);">NO SIGNAL</div>
+            </div>
+            <input type="file" id="media-upload" accept="audio/*" multiple onchange="handleMediaSelect(this)" style="display:none;">
+            <button onclick="document.getElementById('media-upload').click()">LOAD LOCAL FILES</button>
+            <audio id="audio-player" controls style="width: 100%; margin-top: 10px;"></audio>
         </div>
     </div>
 
     <script>
-        // --- CORE VARIABLES ---
+        /* --- SYSTEM CORE --- */
         const canvas = document.getElementById('reactor');
         const ctx = canvas.getContext('2d');
         let width, height, centerX, centerY, scale, time = 0;
-        let mouse = { x: 0, y: 0 }; 
+        let animationFrame;
         
-        // State
-        let userApiKey = "";
-        let systemState = 'IDLE', micEnabled = false;
-        let batteryLevel = 1.0;
-        let voices = [], recognition = null, silenceTimer = null;
+        // System State
+        let systemConfig = {
+            apiKey: localStorage.getItem('jarvis_api_key') || '',
+            userName: 'Jim'
+        };
         
-        let visionActive = false, isCoreExpanded = false;
-        let currentFacingMode = 'environment'; 
+        let visionActive = false;
+        let usingLocalCamera = false;
         let localStream = null;
-        let audioCtx, analyser, dataArray, audioPlayer;
+        let audioCtx, recognition;
+        
+        // HUD State
+        let hudActive = false;
+        let watchId = null;
 
-        const colors = { cyan: '#00E5FF', darkCyan: 'rgba(0, 229, 255, 0.3)', orange: '#FFA500', bg: '#050a14', white: '#FFFFFF' };
+        // UI Config
+        const colors = { cyan: '#00E5FF', orange: '#FFA500', white: '#FFFFFF' };
+        
         const menuItems = [
-            { id: 'set', label: 'CONFIG', icon: '\uf013', targetModal: 'modal-settings', angle: -Math.PI * 0.25, opacity: 0.8, hovered: false }, 
-            { id: 'vis', label: 'VISION', icon: '\uf06e', targetModal: 'core-vision', angle: Math.PI * 0.25, opacity: 0.8, hovered: false }, 
-            { id: 'cmd', label: 'CHAT', icon: '\uf086', targetModal: 'modal-command', angle: Math.PI * 0.75, opacity: 0.8, hovered: false },
+            { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, 
+            { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.25 }, 
+            { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: Math.PI * 0.25 },
+            { id: 'cmd', label: 'CMD', icon: 'fa-terminal', target: 'modal-command', angle: Math.PI * 0.75 }
         ];
 
-        // --- INIT ---
+        /* --- INITIALIZATION --- */
         async function initSystem() {
-            document.getElementById('start-overlay').style.display = 'none';
+            if ('wakeLock' in navigator) { 
+                try { await navigator.wakeLock.request('screen'); } catch (err) { console.log('Wake Lock failed'); }
+            }
             
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            initAudioEngine();
-
-            if ('wakeLock' in navigator) { try { await navigator.wakeLock.request('screen'); } catch (err) {} }
-
-            loadMemory();
-            populateVoices();
-            micEnabled = true;
-            startContinuousListening();
             
-            sfxOpen();
-            speak("Mobile Unit Initialized.");
+            document.getElementById('start-overlay').style.opacity = '0';
+            setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 500);
+            document.getElementById('mic-status').innerText = "ONLINE";
+            document.getElementById('overlay-text').innerText = "SYSTEM ACTIVE";
             
+            if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
+
             resize();
             draw();
+            initSpeech();
+            sfx('startup');
+            speak("Welcome back, Sir. Systems are online.");
         }
 
-        function loadMemory() {
-            const k = localStorage.getItem('jarvis_api_key'); if(k) { userApiKey = k; document.getElementById('api-key-input').value = k; }
+        function requestFullScreen() {
+            const doc = document.documentElement;
+            if (doc.requestFullscreen) doc.requestFullscreen();
+            else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
         }
-        function saveApiKey(k) { userApiKey = k.trim(); localStorage.setItem('jarvis_api_key', userApiKey); }
-        function saveVoiceSelection(e) { const n = e.options[e.selectedIndex].getAttribute('data-name'); if(n) localStorage.setItem('jarvis_voice_name', n); }
 
-        // --- VISION LOGIC ---
-        async function toggleVisionMode() {
-            visionActive = !visionActive;
-            const core = document.getElementById('core-vision-overlay');
-            isCoreExpanded = false; core.classList.remove('core-expanded');
+        /* --- MOTO HUD LOGIC --- */
+        function activateHUD() {
+            closeModal('modal-settings');
+            document.getElementById('moto-hud').style.display = 'flex';
+            hudActive = true;
+            requestFullScreen();
+            speak("Heads Up Display Activated. Ride safe, Sir.");
             
-            if (visionActive) {
-                core.style.display = 'block';
-                startCamera();
-            } else {
-                core.style.display = 'none';
-                stopCamera();
-            }
-            resize(); 
-        }
-
-        async function startCamera() {
-            stopCamera(); 
-            const video = document.getElementById('local-vision-feed');
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } });
-                localStream = stream;
-                video.srcObject = stream;
-            } catch(e) { alert("Camera failed: " + e); }
-        }
-
-        function stopCamera() {
-            if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
-        }
-
-        function switchCameraFacing() {
-            currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
-            startCamera();
-        }
-
-        function toggleCoreZoom() {
-            const core = document.getElementById('core-vision-overlay');
-            isCoreExpanded = !isCoreExpanded;
-            if (isCoreExpanded) core.classList.add('core-expanded');
-            else core.classList.remove('core-expanded');
-        }
-
-        // --- UI ---
-        function openModal(id) { 
-            sfxOpen();
-            if (id === 'core-vision') { toggleVisionMode(); return; }
-            document.querySelectorAll('.modal-window').forEach(w => w.style.display='none');
-            document.getElementById(id).style.display = 'flex';
-        }
-
-        function closeModal(id) { sfxClick(); document.getElementById(id).style.display='none'; }
-
-        function toggleVoiceInput() {
-            wakeUp();
-            document.getElementById('chat-log').innerHTML += "<br>> LISTENING...";
-        }
-
-        // --- AUDIO ---
-        function populateVoices() {
-            voices = speechSynthesis.getVoices();
-            const s = document.getElementById('voice-select'); s.innerHTML = '';
-            if (voices.length === 0) { s.add(new Option("Loading...")); setTimeout(populateVoices, 100); return; }
-            const sv = localStorage.getItem('jarvis_voice_name');
-            voices.forEach(v => { 
-                const o = new Option(v.name); o.setAttribute('data-name', v.name);
-                if (v.name === sv) o.selected = true; s.add(o); 
-            });
-        }
-        speechSynthesis.onvoiceschanged = populateVoices;
-
-        function speak(text) {
-            speechSynthesis.cancel();
-            isSpeaking = true;
-            const u = new SpeechSynthesisUtterance(text);
-            const n = localStorage.getItem('jarvis_voice_name');
-            if (voices.length > 0) { const v = voices.find(x => x.name === n); if (v) u.voice = v; }
-            u.onend = () => { isSpeaking = false; if(!isAwake) resetSilenceTimer(); };
-            speechSynthesis.speak(u);
-        }
-
-        function startContinuousListening() {
-            if (!('webkitSpeechRecognition' in window)) return;
-            recognition = new webkitSpeechRecognition();
-            recognition.continuous = true; recognition.lang = 'en-US';
-            recognition.onend = () => { if(micEnabled) setTimeout(() => { try{recognition.start();}catch(e){} }, 1000); };
-            recognition.onresult = (e) => {
-                const txt = e.results[e.results.length-1][0].transcript.trim();
-                processVoiceInput(txt);
-            };
-            try { recognition.start(); } catch(e){}
-            updateStatusText();
-        }
-
-        function processVoiceInput(text) {
-            const lower = text.toLowerCase();
-            if (isSpeaking) return;
-            if (!isAwake) {
-                if (lower.includes("jarvis")) {
-                    wakeUp();
-                    const cmd = lower.split("jarvis")[1];
-                    if(cmd && cmd.trim().length > 2) handleChat({key:'Enter', target:{value:cmd.trim()}});
-                }
-                return;
-            }
-            resetSilenceTimer();
-            if (lower.includes("sleep")) { isAwake = false; updateStatusText(); return; }
-            document.getElementById('chat-input').value = text;
-            handleChat({key:'Enter', target:{value:text}});
-        }
-
-        function wakeUp() { isAwake = true; sfxOpen(); updateStatusText(); resetSilenceTimer(); }
-        function resetSilenceTimer() { 
-            if(silenceTimer) clearTimeout(silenceTimer); 
-            silenceTimer = setTimeout(() => { isAwake = false; updateStatusText(); }, 15000); 
-        }
-        function updateStatusText() {
-            const el = document.getElementById('mic-status');
-            if (isAwake) { el.innerText = "LISTENING"; el.classList.add('mic-active'); }
-            else { el.innerText = "STANDBY"; el.classList.remove('mic-active'); }
-        }
-        function testVoice() { speak("Audio systems nominal."); sfxOpen(); }
-
-        async function handleChat(e) {
-            if(e.key !== 'Enter') return;
-            const msg = e.target.value; if(!msg) return; e.target.value = "";
-            const log = document.getElementById('chat-log');
-            log.innerHTML += `<br><span style="color:#FFF">> ME:</span> ${msg}`;
-            
-            const lower = msg.toLowerCase();
-            if(lower.includes('config')) { openModal('modal-settings'); return; }
-            if(lower.includes('vision')) { toggleVisionMode(); return; }
-            if(!userApiKey) { speak("API Key required."); openModal('modal-settings'); return; }
-
-            try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${userApiKey}`, {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: msg }] }] })
+            // Start GPS Watch
+            if ('geolocation' in navigator) {
+                watchId = navigator.geolocation.watchPosition(updateSpeed, (err) => console.log(err), {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 27000
                 });
-                const json = await res.json();
-                const txt = json.candidates?.[0]?.content?.parts?.[0]?.text;
-                if(txt) {
-                    log.innerHTML += `<br><span style="color:#00E5FF">> JARVIS:</span> ${txt}`;
-                    speak(txt);
-                    log.scrollTop = log.scrollHeight;
-                }
-            } catch(e) { log.innerHTML += `<br><span style="color:red">> ERROR: Network</span>`; }
+            }
+            
+            // Start Orientation
+            window.addEventListener('deviceorientation', handleOrientation);
+            
+            // Start Clock
+            updateClock();
+            setInterval(updateClock, 1000);
         }
 
-        // --- DRAWING & TOUCH ---
+        function closeHUD() {
+            document.getElementById('moto-hud').style.display = 'none';
+            hudActive = false;
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            window.removeEventListener('deviceorientation', handleOrientation);
+        }
+
+        function updateSpeed(position) {
+            if (!hudActive) return;
+            // speed is in m/s. Convert to km/h: speed * 3.6
+            let speed = position.coords.speed;
+            if (speed === null || speed < 0) speed = 0;
+            const kmh = Math.round(speed * 3.6);
+            document.getElementById('hud-speed').innerText = kmh;
+        }
+
+        function handleOrientation(event) {
+            if (!hudActive) return;
+            
+            // Compass (Alpha)
+            const alpha = event.alpha || 0; 
+            // We shift the tape based on alpha. 360 degrees = full width roughly
+            // Simple visual approximation
+            const offset = (alpha / 360) * 100; 
+            // We want center to be current heading. 
+            // A more complex implementation creates an infinite tape, simplified here:
+            document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`;
+
+            // Lean (Gamma) - Roll left/right
+            const gamma = event.gamma || 0; // -90 to 90
+            let leanLeft = 0;
+            let leanRight = 0;
+            
+            if (gamma < -5) leanLeft = Math.min(Math.abs(gamma), 45); // Cap visualization at 45 deg
+            if (gamma > 5) leanRight = Math.min(gamma, 45);
+
+            // Scale to height percentage (45 deg = 100%)
+            document.getElementById('fill-left').style.height = (leanLeft * 2.2) + '%';
+            document.getElementById('fill-right').style.height = (leanRight * 2.2) + '%';
+        }
+
+        function updateClock() {
+            if (!hudActive) return;
+            const now = new Date();
+            document.getElementById('hud-clock').innerText = 
+                now.getHours().toString().padStart(2, '0') + ':' + 
+                now.getMinutes().toString().padStart(2, '0');
+        }
+
+        function launchMaps() {
+            window.open("https://www.google.com/maps", "_blank");
+        }
+
+        /* --- REACTOR GRAPHICS --- */
         window.addEventListener('resize', resize);
         function resize() {
             width = window.innerWidth; height = window.innerHeight;
             canvas.width = width; canvas.height = height;
             centerX = width / 2; centerY = height / 2;
-            scale = Math.min(width, height) * 0.40; // Mobile Scale
-            
-            // Update Vision Size
-            const coreSize = (scale * 0.30) * 2; 
-            const cv = document.getElementById('core-vision-overlay');
-            if(cv && !cv.classList.contains('core-expanded')) {
-                cv.style.width = coreSize + 'px';
-                cv.style.height = coreSize + 'px';
-            }
-        }
-
-        function handleTouch(e) {
-            const t = e.touches ? e.touches[0] : e;
-            const rect = canvas.getBoundingClientRect();
-            const mx = t.clientX - rect.left - centerX;
-            const my = t.clientY - rect.top - centerY;
-            const dist = Math.sqrt(mx*mx + my*my);
-            const angle = Math.atan2(my, mx);
-            
-            if (dist > scale * 1.3 && dist < scale * 1.7) {
-                for (let item of menuItems) {
-                     let diff = angle - item.angle;
-                     while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2;
-                     if (Math.abs(diff) < 0.4) { openModal(item.targetModal); return; }
-                }
-            }
-        }
-        window.addEventListener('touchstart', handleTouch);
-        window.addEventListener('mousedown', handleTouch);
-
-        function initAudioEngine() {
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64; 
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
-        }
-        function sfxOpen() { 
-            try {
-                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.frequency.value = 600; gain.gain.value = 0.1;
-                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-            } catch(e) {}
-        }
-        function sfxClick() { 
-             try {
-                 const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-                 osc.connect(gain); gain.connect(audioCtx.destination);
-                 osc.type = 'square'; osc.frequency.value = 1200; gain.gain.value = 0.05;
-                 osc.start(); osc.stop(audioCtx.currentTime + 0.05);
-             } catch(e) {}
+            scale = Math.min(width, height) * (width < 768 ? 0.40 : 0.25);
         }
 
         function draw() {
-            try {
-                ctx.setTransform(1,0,0,1,0,0);
-                ctx.clearRect(0,0,width,height);
-                ctx.translate(centerX, centerY);
+            if (hudActive) {
+                // Skip rendering reactor if HUD is on to save battery
+                animationFrame = requestAnimationFrame(draw);
+                return;
+            }
+
+            ctx.setTransform(1,0,0,1,0,0);
+            ctx.clearRect(0,0,width,height);
+            ctx.translate(centerX, centerY);
+            
+            // Reactor Rings (Standard Jarvis Loop)
+            ctx.save(); ctx.rotate(time * 0.0005); 
+            for (let i = 0; i < 60; i++) {
+                ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(scale*1.0,0); ctx.lineTo(scale*1.1,0);
+                ctx.strokeStyle = colors.cyan; ctx.lineWidth = 1; ctx.stroke();
+            }
+            ctx.restore();
+
+            ctx.save(); ctx.rotate(-time * 0.001);
+            ctx.lineWidth = scale * 0.12; ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)';
+            for(let j=0; j<3; j++) {
+                ctx.beginPath(); ctx.arc(0, 0, scale*0.85, 0, 1.2); ctx.stroke();
+                ctx.rotate(Math.PI*2/3);
+            }
+            ctx.restore();
+
+            ctx.save(); ctx.rotate(time * 0.002);
+            ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0,0, scale*0.75, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+
+            ctx.save(); ctx.rotate(-time * 0.003);
+            ctx.lineWidth = scale * 0.1; ctx.strokeStyle = colors.cyan;
+            for(let l=0; l<2; l++) {
+                ctx.beginPath(); ctx.arc(0,0, scale*0.65, 0, 2.0); ctx.stroke();
+                ctx.rotate(Math.PI);
+            }
+            ctx.restore();
+
+            ctx.save(); ctx.rotate(time * 0.01);
+            ctx.lineWidth = 6; ctx.strokeStyle = colors.orange; ctx.shadowColor = colors.orange; ctx.shadowBlur = 15;
+            ctx.beginPath(); ctx.arc(0,0, scale*0.55, 0, 2.0); ctx.stroke();
+            ctx.restore();
+
+            ctx.save(); ctx.rotate(time * 0.02);
+            ctx.lineWidth = 3; ctx.strokeStyle = colors.white; ctx.shadowColor = colors.white; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.arc(0,0, scale*0.45, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+
+            if (!visionActive) {
+                ctx.save();
+                ctx.fillStyle = colors.cyan; ctx.shadowColor = colors.cyan; ctx.shadowBlur = 40;
+                ctx.globalAlpha = 0.6 + Math.sin(time * 0.05) * 0.2;
+                ctx.beginPath(); ctx.arc(0,0, scale*0.30, 0, Math.PI*2); ctx.fill();
                 
-                let audioData = 0;
-                if (analyser && (isAwake || isSpeaking)) {
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
-                    audioData = (sum / dataArray.length) / 255; 
-                }
-
-                // REACTOR MK.III LAYERS
-                // 1. Outer Calibration (Bright)
-                ctx.save(); ctx.rotate(time * 0.0005); 
-                for (let i = 0; i < 60; i++) {
-                    ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(scale*1.0,0); ctx.lineTo(scale*1.1,0);
-                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2; ctx.stroke();
-                }
+                ctx.globalAlpha = 1.0; ctx.fillStyle = "#FFFFFF";
+                ctx.font = `bold ${scale * 0.15}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
                 ctx.restore();
+            }
 
-                // 2. Outer Intake (Thicker)
-                ctx.save(); ctx.rotate(-time * 0.001);
-                ctx.lineWidth = scale * 0.12; ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)';
-                for(let j=0; j<3; j++) {
-                    ctx.beginPath(); ctx.arc(0, 0, scale*0.85, 0, 1.2); ctx.stroke(); ctx.rotate(Math.PI*2/3);
-                }
+            drawMenu();
+            time++;
+            animationFrame = requestAnimationFrame(draw);
+        }
+
+        function drawMenu() {
+            menuItems.forEach(item => {
+                const outerR = scale * 1.6;
+                const innerR = scale * 1.35;
+                const angleWidth = 0.25;
+                const startAngle = item.angle - angleWidth;
+                const endAngle = item.angle + angleWidth;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, outerR, startAngle, endAngle);
+                ctx.arc(0, 0, innerR, endAngle, startAngle, true);
+                ctx.closePath();
+
+                ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; 
+                ctx.fill();
+                ctx.strokeStyle = colors.cyan; ctx.lineWidth = 1; ctx.stroke();
+
+                const midR = (outerR + innerR) / 2;
+                const txtX = Math.cos(item.angle) * midR;
+                const txtY = Math.sin(item.angle) * midR;
+
+                ctx.fillStyle = "#00E5FF"; 
+                ctx.font = `bold ${scale * 0.08}px Orbitron`;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(item.label, txtX, txtY);
                 ctx.restore();
+            });
+        }
 
-                // 3. Inner
-                ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(0,0, scale*0.75, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+        /* --- INPUT HANDLING --- */
+        let touchActive = false;
+        
+        window.addEventListener('touchstart', handleInput, {passive: false});
+        window.addEventListener('mousedown', (e) => { if(!touchActive) handleInput(e); });
 
-                // 4. Inner Intake
-                ctx.save(); ctx.rotate(-time * 0.003); ctx.lineWidth = scale * 0.1; ctx.strokeStyle = colors.cyan;
-                for(let l=0; l<2; l++) {
-                    ctx.beginPath(); ctx.arc(0,0, scale*0.65, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI);
-                }
-                ctx.restore();
+        function handleInput(e) {
+            // Disable menu interaction if HUD is active
+            if(hudActive) return; 
 
-                // 5. Polarity (Yellow)
-                ctx.save(); ctx.rotate(time * 0.01);
-                const audioWidth = 8 + (audioData * 40);
-                ctx.lineWidth = audioWidth; ctx.strokeStyle = colors.orange; ctx.shadowColor = colors.orange; ctx.shadowBlur = 20;
-                ctx.beginPath(); ctx.arc(0,0, scale*0.55, 0, 2.0); ctx.stroke(); ctx.restore();
+            touchActive = e.type === 'touchstart';
+            const clientX = touchActive ? e.touches[0].clientX : e.clientX;
+            const clientY = touchActive ? e.touches[0].clientY : e.clientY;
 
-                // 6. White Ring
-                ctx.save(); ctx.rotate(time * 0.02);
-                ctx.lineWidth = 4; ctx.strokeStyle = colors.white; ctx.shadowColor = colors.white; ctx.shadowBlur = 15;
-                ctx.beginPath(); ctx.arc(0,0, scale*0.45, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+            const rect = canvas.getBoundingClientRect();
+            const dx = clientX - (rect.left + centerX);
+            const dy = clientY - (rect.top + centerY);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const angle = Math.atan2(dy, dx);
 
-                // 7. Core (Only if Vision Off)
-                if (!visionActive) {
-                    ctx.save();
-                    ctx.fillStyle = colors.cyan; ctx.shadowColor = colors.cyan; ctx.shadowBlur = 60;
-                    ctx.globalAlpha = 0.7 + Math.sin(time * 0.05) * 0.2;
-                    ctx.beginPath(); ctx.arc(0,0, scale*0.30, 0, Math.PI*2); ctx.fill();
-                    
-                    ctx.globalAlpha = 1.0; ctx.fillStyle = "#FFFFFF";
-                    ctx.font = `bold ${scale * 0.15}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-                    ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
-                    ctx.restore();
-                }
-
-                // ARC BUTTONS (High Visibility)
+            if (dist > scale * 1.3 && dist < scale * 1.7) {
                 menuItems.forEach(item => {
-                    const r = scale * 1.4;
-                    const x = Math.cos(item.angle) * r;
-                    const y = Math.sin(item.angle) * r;
+                    let diff = angle - item.angle;
+                    while(diff < -Math.PI) diff += Math.PI*2;
+                    while(diff > Math.PI) diff -= Math.PI*2;
                     
-                    ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI*2); 
-                    ctx.fillStyle = "rgba(0, 229, 255, 0.2)"; ctx.fill();
-                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 3; ctx.stroke();
-
-                    ctx.fillStyle = "#FFF"; ctx.font = "12px Orbitron";
-                    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-                    ctx.fillText(item.label, x, y);
+                    if (Math.abs(diff) < 0.3) {
+                        e.preventDefault();
+                        hapticFeedback();
+                        if (item.target === 'vision-toggle') toggleVision();
+                        else openModal(item.target);
+                    }
                 });
-
-                time++;
-                requestAnimationFrame(draw);
-            } catch(e) {
-                console.log(e);
-                requestAnimationFrame(draw);
+            } else if (dist < scale * 0.4) {
+                 toggleVoiceInput();
             }
         }
 
-        window.addEventListener('load', () => {
-            resize();
-            draw();
-        });
+        function hapticFeedback() { if (navigator.vibrate) navigator.vibrate(15); }
+
+        function openModal(id) {
+            sfx('click');
+            document.querySelectorAll('.modal-window').forEach(m => m.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+        function closeModal(id) {
+            sfx('close');
+            document.getElementById(id).classList.remove('active');
+        }
+
+        /* --- VISION SYSTEM --- */
+        function toggleVision() {
+            sfx('click');
+            visionActive = !visionActive;
+            const overlay = document.getElementById('core-vision-overlay');
+            
+            if (visionActive) {
+                overlay.style.display = 'block';
+                setTimeout(() => overlay.classList.add('core-expanded'), 10);
+                if (!usingLocalCamera) startRemoteStream(); 
+                else startLocalCamera();
+            } else {
+                overlay.classList.remove('core-expanded');
+                setTimeout(() => overlay.style.display = 'none', 300);
+                stopAllVideo();
+            }
+        }
+
+        function closeVision() { visionActive = false; toggleVision(); }
+
+        async function startLocalCamera() {
+            const video = document.getElementById('local-vision-feed');
+            const img = document.getElementById('vision-feed');
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = localStream;
+                video.style.display = 'block';
+                img.style.display = 'none';
+                usingLocalCamera = true;
+            } catch (err) { alert("Camera access denied."); }
+        }
+
+        function startRemoteStream() { startLocalCamera(); }
+        function toggleCameraSource() { hapticFeedback(); startLocalCamera(); }
+
+        function stopAllVideo() {
+            if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
+            document.getElementById('vision-feed').src = "";
+        }
+
+        /* --- AUDIO & AI --- */
+        function sfx(type) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if (type === 'startup') {
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+            } else {
+                osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square';
+                osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+            }
+        }
+
+        function speak(text) {
+            if (window.speechSynthesis) {
+                const u = new SpeechSynthesisUtterance(text);
+                const voices = speechSynthesis.getVoices();
+                const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male'));
+                if (brit) u.voice = brit;
+                u.rate = 1.0; u.pitch = 1.0;
+                speechSynthesis.speak(u);
+            }
+        }
+
+        function initSpeech() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) { document.getElementById('mic-status').innerText = "NO MIC SUPPORT"; return; }
+            recognition = new SpeechRecognition();
+            recognition.continuous = false; recognition.lang = 'en-GB';
+            recognition.onstart = () => {
+                document.getElementById('mic-status').innerText = "LISTENING...";
+                document.getElementById('mic-status').style.color = colors.orange;
+                document.getElementById('mic-icon').style.color = colors.orange;
+            };
+            recognition.onend = () => {
+                document.getElementById('mic-status').innerText = "ONLINE";
+                document.getElementById('mic-status').style.color = colors.cyan;
+                document.getElementById('mic-icon').style.color = "";
+            };
+            recognition.onresult = (e) => { processCommand(e.results[0][0].transcript); };
+        }
+
+        function toggleVoiceInput() { hapticFeedback(); try { recognition.start(); } catch(e) { recognition.stop(); } }
+        function handleChat(e) { if (e.key === 'Enter') { processCommand(e.target.value); e.target.value = ''; e.target.blur(); } }
+
+        async function processCommand(cmd) {
+            if (!cmd) return;
+            const log = document.getElementById('chat-log');
+            log.innerHTML += `<span class="msg-user">> ${cmd.toUpperCase()}</span>`;
+            log.scrollTop = log.scrollHeight;
+
+            if (cmd.toLowerCase().includes('vision') || cmd.toLowerCase().includes('camera')) { toggleVision(); return; }
+            
+            if (!systemConfig.apiKey) {
+                speak("I need an API key, Sir.");
+                log.innerHTML += `<span class="msg-sys">ERROR: MISSING API KEY</span>`;
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${systemConfig.apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `You are JARVIS. Answer briefly to Dimitri (Jim). Request: ${cmd}` }] }]
+                    })
+                });
+                const data = await response.json();
+                const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Processing error.";
+                log.innerHTML += `<span class="msg-sys">${reply.toUpperCase()}</span>`;
+                log.scrollTop = log.scrollHeight;
+                speak(reply);
+            } catch (err) {
+                console.error(err);
+                log.innerHTML += `<span class="msg-sys">CONNECTION ERROR</span>`;
+                speak("I cannot reach the cloud, Sir.");
+            }
+        }
+
+        function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
+
+        function handleMediaSelect(input) {
+            const files = input.files;
+            if (files.length > 0) {
+                const url = URL.createObjectURL(files[0]);
+                const player = document.getElementById('audio-player');
+                player.src = url;
+                document.getElementById('now-playing').innerText = files[0].name;
+                player.play();
+            }
+        }
+        
+        window.addEventListener('beforeunload', () => { if (localStream) localStream.getTracks().forEach(t => t.stop()); });
+
     </script>
 </body>
 </html>
