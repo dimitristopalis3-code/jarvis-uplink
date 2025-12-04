@@ -204,11 +204,12 @@
         <div class="modal-header"><span>SECURE COMMS</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-comms')"></i></div>
         <div class="modal-body">
             <div class="comms-grid">
-                <div class="comms-btn" onclick="launchApp('https://wa.me/')">
+                <!-- UPDATED LINKS FOR MOBILE COMPATIBILITY -->
+                <div class="comms-btn" onclick="launchApp('whatsapp://send?text=')">
                     <i class="fab fa-whatsapp comms-icon"></i>
                     <span class="comms-label">WHATSAPP</span>
                 </div>
-                <div class="comms-btn" onclick="launchApp('fb-messenger://')">
+                <div class="comms-btn" onclick="launchApp('https://m.me/')">
                     <i class="fab fa-facebook-messenger comms-icon"></i>
                     <span class="comms-label">MESSENGER</span>
                 </div>
@@ -216,7 +217,7 @@
                     <i class="fab fa-facebook-f comms-icon"></i>
                     <span class="comms-label">FACEBOOK</span>
                 </div>
-                <div class="comms-btn" onclick="launchApp('instagram://app')">
+                <div class="comms-btn" onclick="launchApp('https://www.instagram.com/')">
                     <i class="fab fa-instagram comms-icon"></i>
                     <span class="comms-label">INSTAGRAM</span>
                 </div>
@@ -500,7 +501,19 @@
         function saveIdentity() { const name = document.getElementById('db-name').value; const rel = document.getElementById('db-relation').value; const img = document.getElementById('db-preview').src; if(!name || !pendingEmbedding) return; facesDB.push({ name, rel, img, embedding: pendingEmbedding }); localStorage.setItem('jarvis_faces', JSON.stringify(facesDB)); speak("Identity confirmed and encrypted."); loadFaceDB(); closeModal('modal-db'); }
         function loadFaceDB() { const list = document.getElementById('db-list'); list.innerHTML = ""; facesDB.forEach(p => { list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`; }); }
         function clearDB() { facesDB = []; localStorage.removeItem('jarvis_faces'); loadFaceDB(); speak("Database wiped."); }
-        function launchApp(url) { window.open(url, '_blank'); speak("Establishing uplink."); }
+        
+        // UPDATED LAUNCH APP LOGIC
+        function launchApp(url) { 
+            speak("Establishing uplink."); 
+            // If it's a web link (https), use window.open
+            if (url.startsWith('http')) {
+                window.open(url, '_blank');
+            } 
+            // If it's a custom scheme (whatsapp://), use location.href to trigger the app directly
+            else {
+                window.location.href = url;
+            }
+        }
         
         function handleInput(e) { 
             if(hudActive || visionActive || document.querySelector('.modal-window.active')) return; 
@@ -556,4 +569,5 @@
     </script>
 </body>
 </html>
+
 
