@@ -25,18 +25,18 @@
             display: flex; justify-content: center; align-items: center; 
         }
         
-        /* REACTOR CONTAINER - RESTORED */
+        /* REACTOR CONTAINER - HIGH CONTRAST */
         #reactor-container { 
             position: fixed; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%); 
-            width: 100vw; 
-            height: 100vh; 
-            z-index: 0; 
-            opacity: 0.8; 
-            background: radial-gradient(circle, rgba(0,0,0,0) 20%, rgba(5, 10, 20, 0.4) 100%); 
-            pointer-events: none; /* Let touches pass to buttons */
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 1; 
+            opacity: 1.0; /* FULL VISIBILITY */
+            /* Dark edges, clear center for reactor to shine */
+            background: radial-gradient(circle, rgba(0,0,0,0) 30%, rgba(5, 10, 20, 0.8) 90%); 
+            pointer-events: none; 
         }
         canvas { display: block; }
         
@@ -45,7 +45,7 @@
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             border-radius: 50%; overflow: hidden; z-index: 10; 
             display: none; background: #000; border: 2px solid #00E5FF;
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.8);
             pointer-events: auto;
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
@@ -68,26 +68,26 @@
         }
 
         /* UI OVERLAYS */
-        #overlay-text { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #00bcd4; font-size: 10px; opacity: 0.6; z-index: 5; pointer-events: none; }
-        #mic-status { position: absolute; top: 30px; width: 100%; text-align: center; color: rgba(0, 229, 255, 0.7); font-size: 12px; letter-spacing: 3px; z-index: 5; font-weight: 700; pointer-events: none; }
+        #overlay-text { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #00bcd4; font-size: 10px; opacity: 0.8; z-index: 5; pointer-events: none; }
+        #mic-status { position: absolute; top: 30px; width: 100%; text-align: center; color: rgba(0, 229, 255, 0.9); font-size: 12px; letter-spacing: 3px; z-index: 5; font-weight: 700; pointer-events: none; }
         
         /* INIT OVERLAY */
         #start-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 10, 20, 0.95); z-index: 9999;
+            background: rgba(5, 10, 20, 0.98); z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
             pointer-events: auto;
         }
         #start-btn { 
             padding: 20px 40px; border: 2px solid #00E5FF; background: rgba(0, 229, 255, 0.1); 
             color: #00E5FF; font-family: 'Orbitron'; font-size: 20px; font-weight: 900; letter-spacing: 2px; 
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.2); 
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5); 
         }
 
         /* WINDOWS */
         .modal-window { 
             position: absolute; background: rgba(10, 15, 25, 0.95); border: 1px solid #00E5FF; 
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.15); backdrop-filter: blur(15px); padding: 0; 
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.3); backdrop-filter: blur(15px); padding: 0; 
             display: none; flex-direction: column; z-index: 50; pointer-events: auto;
             width: 95%; height: 85%; top: 50%; left: 50%; transform: translate(-50%, -50%);
         }
@@ -118,10 +118,10 @@
 
     <div id="start-overlay" onclick="initSystem()">
         <div id="start-btn">INITIALIZE MOBILE</div>
-        <div style="margin-top: 15px; opacity: 0.7; font-size: 10px;">CORE RESTORED v72.0</div>
+        <div style="margin-top: 15px; opacity: 0.8; font-size: 10px;">STANDALONE v73.0 (HIGH CONTRAST)</div>
     </div>
 
-    <!-- REACTOR CONTAINER RESTORED -->
+    <!-- DIRECT CANVAS - Z-INDEX 1 -->
     <div id="reactor-container"><canvas id="reactor"></canvas></div>
     
     <!-- INTEGRATED CORE VISION -->
@@ -143,7 +143,7 @@
             <span class="close-btn" onclick="closeModal('modal-command')">×</span>
         </div>
         <div class="modal-body">
-            <div class="chat-log" id="chat-log">> SYSTEM: CORE VISUALS RESTORED.<br>> SYSTEM: READY.<br></div>
+            <div class="chat-log" id="chat-log">> SYSTEM: HIGH CONTRAST ACTIVE.<br>> SYSTEM: READY.<br></div>
             <div class="input-group">
                 <input type="text" id="chat-input" placeholder="Ask Jarvis..." onkeydown="handleChat(event)">
                 <button onclick="toggleVoiceInput()"><i class="fas fa-microphone"></i></button>
@@ -182,23 +182,20 @@
         let localStream = null;
         let audioCtx, analyser, dataArray, audioPlayer;
 
-        const colors = { cyan: '#00E5FF', darkCyan: 'rgba(0, 229, 255, 0.15)', orange: '#FFA500', bg: '#050a14', white: '#FFFFFF' };
+        const colors = { cyan: '#00E5FF', darkCyan: 'rgba(0, 229, 255, 0.3)', orange: '#FFA500', bg: '#050a14', white: '#FFFFFF' };
         const menuItems = [
-            { id: 'set', label: 'CONFIG', icon: '\uf013', targetModal: 'modal-settings', angle: -Math.PI * 0.25, opacity: 0.4, hovered: false }, 
-            { id: 'vis', label: 'VISION', icon: '\uf06e', targetModal: 'core-vision', angle: Math.PI * 0.25, opacity: 0.4, hovered: false }, 
-            { id: 'cmd', label: 'CHAT', icon: '\uf086', targetModal: 'modal-command', angle: Math.PI * 0.75, opacity: 0.4, hovered: false },
+            { id: 'set', label: 'CONFIG', icon: '\uf013', targetModal: 'modal-settings', angle: -Math.PI * 0.25, opacity: 0.8, hovered: false }, 
+            { id: 'vis', label: 'VISION', icon: '\uf06e', targetModal: 'core-vision', angle: Math.PI * 0.25, opacity: 0.8, hovered: false }, 
+            { id: 'cmd', label: 'CHAT', icon: '\uf086', targetModal: 'modal-command', angle: Math.PI * 0.75, opacity: 0.8, hovered: false },
         ];
 
         // --- INIT ---
         async function initSystem() {
             document.getElementById('start-overlay').style.display = 'none';
             
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-                initAudioEngine();
-                sfxOpen();
-            } catch(e) { console.log("Audio Init Failed"); }
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            initAudioEngine();
 
             if ('wakeLock' in navigator) { try { await navigator.wakeLock.request('screen'); } catch (err) {} }
 
@@ -207,9 +204,9 @@
             micEnabled = true;
             startContinuousListening();
             
+            sfxOpen();
             speak("Mobile Unit Initialized.");
             
-            // Force Visuals
             resize();
             draw();
         }
@@ -291,15 +288,13 @@
         speechSynthesis.onvoiceschanged = populateVoices;
 
         function speak(text) {
-            try {
-                speechSynthesis.cancel();
-                isSpeaking = true;
-                const u = new SpeechSynthesisUtterance(text);
-                const n = localStorage.getItem('jarvis_voice_name');
-                if (voices.length > 0) { const v = voices.find(x => x.name === n); if (v) u.voice = v; }
-                u.onend = () => { isSpeaking = false; if(!isAwake) resetSilenceTimer(); };
-                speechSynthesis.speak(u);
-            } catch(e) {}
+            speechSynthesis.cancel();
+            isSpeaking = true;
+            const u = new SpeechSynthesisUtterance(text);
+            const n = localStorage.getItem('jarvis_voice_name');
+            if (voices.length > 0) { const v = voices.find(x => x.name === n); if (v) u.voice = v; }
+            u.onend = () => { isSpeaking = false; if(!isAwake) resetSilenceTimer(); };
+            speechSynthesis.speak(u);
         }
 
         function startContinuousListening() {
@@ -377,7 +372,8 @@
             canvas.width = width; canvas.height = height;
             centerX = width / 2; centerY = height / 2;
             scale = Math.min(width, height) * 0.40; // Mobile Scale
-
+            
+            // Update Vision Size
             const coreSize = (scale * 0.30) * 2; 
             const cv = document.getElementById('core-vision-overlay');
             if(cv && !cv.classList.contains('core-expanded')) {
@@ -385,7 +381,6 @@
                 cv.style.height = coreSize + 'px';
             }
         }
-        resize();
 
         function handleTouch(e) {
             const t = e.touches ? e.touches[0] : e;
@@ -442,13 +437,15 @@
                 }
 
                 // REACTOR MK.III LAYERS
+                // 1. Outer Calibration (Bright)
                 ctx.save(); ctx.rotate(time * 0.0005); 
                 for (let i = 0; i < 60; i++) {
                     ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(scale*1.0,0); ctx.lineTo(scale*1.1,0);
-                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2; ctx.stroke();
                 }
                 ctx.restore();
 
+                // 2. Outer Intake (Thicker)
                 ctx.save(); ctx.rotate(-time * 0.001);
                 ctx.lineWidth = scale * 0.12; ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)';
                 for(let j=0; j<3; j++) {
@@ -456,29 +453,33 @@
                 }
                 ctx.restore();
 
+                // 3. Inner
                 ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.arc(0,0, scale*0.75, 0, Math.PI*2); ctx.stroke(); ctx.restore();
 
+                // 4. Inner Intake
                 ctx.save(); ctx.rotate(-time * 0.003); ctx.lineWidth = scale * 0.1; ctx.strokeStyle = colors.cyan;
                 for(let l=0; l<2; l++) {
                     ctx.beginPath(); ctx.arc(0,0, scale*0.65, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI);
                 }
                 ctx.restore();
 
+                // 5. Polarity (Yellow)
                 ctx.save(); ctx.rotate(time * 0.01);
-                const audioWidth = 6 + (audioData * 30);
-                ctx.lineWidth = audioWidth; ctx.strokeStyle = colors.orange; ctx.shadowColor = colors.orange; ctx.shadowBlur = 15;
+                const audioWidth = 8 + (audioData * 40);
+                ctx.lineWidth = audioWidth; ctx.strokeStyle = colors.orange; ctx.shadowColor = colors.orange; ctx.shadowBlur = 20;
                 ctx.beginPath(); ctx.arc(0,0, scale*0.55, 0, 2.0); ctx.stroke(); ctx.restore();
 
+                // 6. White Ring
                 ctx.save(); ctx.rotate(time * 0.02);
-                ctx.lineWidth = 3; ctx.strokeStyle = colors.white; ctx.shadowColor = colors.white; ctx.shadowBlur = 10;
+                ctx.lineWidth = 4; ctx.strokeStyle = colors.white; ctx.shadowColor = colors.white; ctx.shadowBlur = 15;
                 ctx.beginPath(); ctx.arc(0,0, scale*0.45, 0, Math.PI*2); ctx.stroke(); ctx.restore();
 
-                // 7. Core (Only draw if Vision is NOT active)
+                // 7. Core (Only if Vision Off)
                 if (!visionActive) {
                     ctx.save();
-                    ctx.fillStyle = colors.cyan; ctx.shadowColor = colors.cyan; ctx.shadowBlur = 40;
-                    ctx.globalAlpha = 0.6 + Math.sin(time * 0.05) * 0.2;
+                    ctx.fillStyle = colors.cyan; ctx.shadowColor = colors.cyan; ctx.shadowBlur = 60;
+                    ctx.globalAlpha = 0.7 + Math.sin(time * 0.05) * 0.2;
                     ctx.beginPath(); ctx.arc(0,0, scale*0.30, 0, Math.PI*2); ctx.fill();
                     
                     ctx.globalAlpha = 1.0; ctx.fillStyle = "#FFFFFF";
@@ -487,17 +488,17 @@
                     ctx.restore();
                 }
 
-                // ARC BUTTONS
+                // ARC BUTTONS (High Visibility)
                 menuItems.forEach(item => {
                     const r = scale * 1.4;
                     const x = Math.cos(item.angle) * r;
                     const y = Math.sin(item.angle) * r;
                     
                     ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI*2); 
-                    ctx.fillStyle = "rgba(0, 229, 255, 0.1)"; ctx.fill();
-                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.fillStyle = "rgba(0, 229, 255, 0.2)"; ctx.fill();
+                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 3; ctx.stroke();
 
-                    ctx.fillStyle = "#FFF"; ctx.font = "10px Orbitron";
+                    ctx.fillStyle = "#FFF"; ctx.font = "12px Orbitron";
                     ctx.textAlign = "center"; ctx.textBaseline = "middle";
                     ctx.fillText(item.label, x, y);
                 });
@@ -505,6 +506,7 @@
                 time++;
                 requestAnimationFrame(draw);
             } catch(e) {
+                console.log(e);
                 requestAnimationFrame(draw);
             }
         }
