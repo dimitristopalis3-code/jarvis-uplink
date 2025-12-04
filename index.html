@@ -51,6 +51,32 @@
         #local-vision-feed { width: 100%; height: 100%; object-fit: cover; }
         #local-vision-feed.mirrored { transform: scaleX(-1); }
 
+        /* CSS HUD OVERLAY */
+        .hud-overlay {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px; height: 250px;
+            pointer-events: none; z-index: 15;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .hud-ring-inner {
+            position: absolute; width: 60%; height: 60%;
+            border: 2px dashed var(--primary); border-radius: 50%;
+            box-shadow: 0 0 10px var(--secondary);
+            animation: hud-spin-cw 10s linear infinite;
+        }
+        .hud-ring-outer {
+            position: absolute; width: 100%; height: 100%;
+            border: 3px solid var(--primary); border-radius: 50%;
+            border-left-color: transparent; border-right-color: transparent;
+            box-shadow: 0 0 15px var(--secondary);
+            animation: hud-spin-ccw 12s linear infinite;
+        }
+        .hud-crosshair-v { position: absolute; width: 1px; height: 30%; background: var(--primary); opacity: 0.7; }
+        .hud-crosshair-h { position: absolute; width: 30%; height: 1px; background: var(--primary); opacity: 0.7; }
+        @keyframes hud-spin-cw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes hud-spin-ccw { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
+
         /* AR Overlay Canvas */
         #vision-ar-canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -71,7 +97,6 @@
         }
         .v-btn:active { transform: scale(0.95); background: rgba(0, 229, 255, 0.2); }
         .v-btn.recording { border-color: red; color: red; animation: pulse-red 1s infinite; }
-
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 rgba(255,0,0,0.5); } 70% { box-shadow: 0 0 20px rgba(255,0,0,0); } 100% { box-shadow: 0 0 0 rgba(255,0,0,0); } }
 
         /* --- MOTO HUD --- */
@@ -208,6 +233,14 @@
             <video id="local-vision-feed" autoplay playsinline muted></video>
         </div>
 
+        <!-- NEW CSS HUD OVERLAY (Targeting Reticle) -->
+        <div class="hud-overlay">
+            <div class="hud-ring-outer"></div>
+            <div class="hud-ring-inner"></div>
+            <div class="hud-crosshair-v"></div>
+            <div class="hud-crosshair-h"></div>
+        </div>
+
         <!-- AR Graphics Layer -->
         <canvas id="vision-ar-canvas"></canvas>
 
@@ -270,6 +303,7 @@
                 <audio id="audio-player" controls style="width:100%; height: 30px; filter: invert(1) hue-rotate(180deg);"></audio>
             </div>
             <div style="font-size: 10px; color: #888; margin-top: 10px;">PLAYLIST</div>
+            <button class="text-btn" style="margin-top:5px; font-size:10px; padding:5px; width:auto; border-color:red; color:red;" onclick="clearMediaDB()">CLEAR PLAYLIST</button>
             <div id="playlist-container">
                 <div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>
             </div>
@@ -325,12 +359,69 @@
             { id: 'hud', label: 'HUD', icon: 'fa-motorcycle', target: 'hud-launch', angle: Math.PI * 0.75 }
         ];
 
+        /* --- INDEXED DB (MEDIA PERSISTENCE) --- */
+        let db;
+        const DB_NAME = 'JarvisMediaDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'tracks';
+
+        function initMediaDB() {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onerror = (event) => console.error("MediaDB Error", event);
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { autoIncrement: true });
+                }
+            };
+            request.onsuccess = (event) => {
+                db = event.target.result;
+                loadTracksFromDB(); // Auto-load on startup
+            };
+        }
+
+        function saveTrackToDB(file) {
+            if (!db) return;
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            store.add(file);
+        }
+
+        function loadTracksFromDB() {
+            if (!db) return;
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+            
+            request.onsuccess = () => {
+                const tracks = request.result;
+                if (tracks && tracks.length > 0) {
+                    playlist = tracks;
+                    renderPlaylist();
+                    speak(`Media Database loaded. ${tracks.length} tracks ready.`);
+                }
+            };
+        }
+
+        function clearMediaDB() {
+            if (!db) return;
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            store.clear();
+            playlist = [];
+            renderPlaylist();
+            speak("Media Playlist purged.");
+        }
+
         /* --- INIT --- */
         async function initSystem() {
             if ('wakeLock' in navigator) try { await navigator.wakeLock.request('screen'); } catch (e) {}
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
+            // Init Database
+            initMediaDB();
+
             // Load Neural Networks
             try {
                 faceModel = await blazeface.load();
@@ -357,11 +448,9 @@
             sfx('startup');
             speak("Welcome back, Jim. System secure.");
             
-            // Register SW for PWA with Explicit Scope
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('/jarvis-uplink/sw.js', { scope: '/jarvis-uplink/' })
-                .then((reg) => console.log('SW Registered with scope:', reg.scope))
-                .catch((err) => console.log('SW Registration Failed:', err));
+                .catch((err) => console.log('SW Fail:', err));
             }
         }
 
@@ -472,8 +561,6 @@
                 arCtx.setTransform(1,0,0,1,0,0);
                 arCtx.clearRect(0,0, arCvs.width, arCvs.height);
                 
-                // Note: Static Center Reactor Removed per request. Screen is clean.
-
                 if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
                     const video = document.getElementById('local-vision-feed');
                     try {
@@ -595,7 +682,8 @@
         function handleMediaSelect(input) {
             const files = Array.from(input.files);
             if (files.length === 0) return;
-            files.forEach(f => playlist.push(f));
+            files.forEach(f => saveTrackToDB(f)); // Save to DB
+            files.forEach(f => playlist.push(f)); // Add to RAM
             renderPlaylist();
             if (currentTrackIndex === -1) playTrack(0);
         }
