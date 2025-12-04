@@ -13,522 +13,275 @@
     <link rel="manifest" href="manifest.json">
     
     <style>
-        /* --- CORE STYLES --- */
-        * { -webkit-tap-highlight-color: transparent; user-select: none; box-sizing: border-box; }
+        /* --- CORE MOBILE STYLES --- */
+        * { -webkit-tap-highlight-color: transparent; user-select: none; box-sizing: border-box; touch-action: none; }
         html { background: #050a14; height: 100%; }
-        body { margin: 0; overflow: hidden; background-color: #050a14; font-family: 'Orbitron', sans-serif; color: #00E5FF; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; touch-action: none; }
+        body { 
+            margin: 0; overflow: hidden; 
+            background-color: #050a14; 
+            font-family: 'Orbitron', sans-serif; 
+            color: #00E5FF; 
+            height: 100vh; width: 100vw; 
+            display: flex; justify-content: center; align-items: center; 
+        }
         
-        /* REACTOR CONTAINER */
-        #reactor-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; z-index: 0; opacity: 0.8; background: radial-gradient(circle, rgba(0,0,0,0) 20%, rgba(5, 10, 20, 0.4) 100%); pointer-events: none; }
+        /* REACTOR CONTAINER - RESTORED */
+        #reactor-container { 
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            width: 100vw; 
+            height: 100vh; 
+            z-index: 0; 
+            opacity: 0.8; 
+            background: radial-gradient(circle, rgba(0,0,0,0) 20%, rgba(5, 10, 20, 0.4) 100%); 
+            pointer-events: none; /* Let touches pass to buttons */
+        }
         canvas { display: block; }
         
-        /* CORE VISION OVERLAY (THE EYE) */
+        /* CORE VISION OVERLAY */
         #core-vision-overlay {
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            border-radius: 50%;
-            overflow: hidden;
-            z-index: 5; 
-            display: none; 
-            background: #000;
-            border: 2px solid #00E5FF;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            border-radius: 50%; overflow: hidden; z-index: 10; 
+            display: none; background: #000; border: 2px solid #00E5FF;
             box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
             pointer-events: auto;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Smooth Zoom Animation */
-            /* Base size set by JS resize() */
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-
-        /* EXPANDED STATE (SNIPER MODE) */
         #core-vision-overlay.core-expanded {
-            width: 85vw !important;
-            height: 85vw !important;
-            border: 4px solid #FFA500; /* Turn Orange when zoomed */
+            width: 90vw !important; height: 90vw !important;
+            border: 4px solid #FFA500; 
             box-shadow: 0 0 80px rgba(255, 165, 0, 0.6);
-            z-index: 100; /* Top of everything */
-            border-radius: 20px; /* Slightly rounded square for better view */
+            z-index: 100; border-radius: 20px;
         }
-
-        #core-vision-overlay img, #core-vision-overlay video {
-            width: 100%; height: 100%; object-fit: cover;
-        }
+        #core-vision-overlay video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* VISION CONTROLS */
         .vision-controls {
-            position: absolute;
-            bottom: 10px;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            pointer-events: none; /* Let clicks pass to video for zoom */
+            position: absolute; bottom: 10px; left: 0; width: 100%;
+            display: flex; justify-content: center; gap: 20px; pointer-events: none;
         }
         .vision-btn {
-            pointer-events: auto;
-            background: rgba(0,0,0,0.6);
-            border: 1px solid #00E5FF;
-            color: #00E5FF;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 12px;
+            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #00E5FF; color: #00E5FF;
+            border-radius: 50%; width: 45px; height: 45px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px;
         }
+
+        /* UI OVERLAYS */
+        #overlay-text { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #00bcd4; font-size: 10px; opacity: 0.6; z-index: 5; pointer-events: none; }
+        #mic-status { position: absolute; top: 30px; width: 100%; text-align: center; color: rgba(0, 229, 255, 0.7); font-size: 12px; letter-spacing: 3px; z-index: 5; font-weight: 700; pointer-events: none; }
         
-        #core-loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 10px; color: #00E5FF; text-align: center; width: 100%;
-            pointer-events: none;
+        /* INIT OVERLAY */
+        #start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 10, 20, 0.95); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            pointer-events: auto;
+        }
+        #start-btn { 
+            padding: 20px 40px; border: 2px solid #00E5FF; background: rgba(0, 229, 255, 0.1); 
+            color: #00E5FF; font-family: 'Orbitron'; font-size: 20px; font-weight: 900; letter-spacing: 2px; 
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.2); 
         }
 
-        /* STATUS OVERLAYS */
-        #overlay-text { position: absolute; bottom: 15px; width: 100%; text-align: center; color: #00bcd4; font-size: 10px; opacity: 0.6; z-index: 2; pointer-events: none; }
-        #mic-status { position: absolute; top: 20px; width: 100%; text-align: center; color: rgba(0, 229, 255, 0.7); font-size: 12px; letter-spacing: 3px; z-index: 2; font-weight: 700; pointer-events: none; }
-        .mic-standby { color: #00E5FF !important; opacity: 0.7; text-shadow: 0 0 10px #00E5FF; }
-        .mic-active { color: #FFA500 !important; text-shadow: 0 0 20px #FFA500, 0 0 10px #FF0000 !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        /* INIT OVERLAY */
-        #start-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 20, 0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; }
-        #start-btn { padding: 20px 40px; border: 2px solid #00E5FF; background: rgba(0, 229, 255, 0.1); color: #00E5FF; font-family: 'Orbitron'; font-size: 20px; font-weight: 900; letter-spacing: 2px; pointer-events: auto; box-shadow: 0 0 30px rgba(0, 229, 255, 0.2); }
-
-        /* MODALS */
+        /* WINDOWS */
         .modal-window { 
             position: absolute; background: rgba(10, 15, 25, 0.95); border: 1px solid #00E5FF; 
             box-shadow: 0 0 30px rgba(0, 229, 255, 0.15); backdrop-filter: blur(15px); padding: 0; 
-            display: none; flex-direction: column; z-index: 20; pointer-events: auto;
-            width: 350px; height: 400px; min-width: 200px; min-height: 200px;
+            display: none; flex-direction: column; z-index: 50; pointer-events: auto;
+            width: 95%; height: 85%; top: 50%; left: 50%; transform: translate(-50%, -50%);
         }
-        .modal-header { background: rgba(0, 229, 255, 0.15); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00E5FF; flex-shrink: 0; cursor: grab; touch-action: none; }
-        .modal-title { font-size: 14px; font-weight: bold; text-shadow: 0 0 5px #00E5FF; pointer-events: none; }
-        .close-btn { font-size: 24px; padding: 0 10px; color: #00E5FF; cursor: pointer; z-index: 30; pointer-events: auto; }
-        .modal-body { flex: 1; padding: 15px; overflow-y: auto; color: #ccc; display: flex; flex-direction: column; gap: 10px; position: relative; }
+        .modal-header { background: rgba(0, 229, 255, 0.15); padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00E5FF; flex-shrink: 0; }
+        .modal-title { font-size: 14px; font-weight: bold; text-shadow: 0 0 5px #00E5FF; }
+        .close-btn { font-size: 24px; padding: 0 10px; color: #00E5FF; }
+        .modal-body { flex: 1; padding: 15px; overflow-y: auto; color: #ccc; display: flex; flex-direction: column; gap: 10px; }
 
-        /* RESIZE HANDLE */
-        .resize-handle { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; background: linear-gradient(135deg, transparent 50%, #00E5FF 50%); cursor: nwse-resize; z-index: 30; touch-action: none; }
-
-        /* UI */
+        /* INPUTS & BUTTONS */
         .input-group { display: flex; gap: 5px; flex-shrink: 0; }
-        input[type="text"], select { background: rgba(0, 20, 30, 0.9); border: 1px solid #00E5FF; color: #00E5FF; padding: 10px; flex: 1; outline: none; font-family: 'Orbitron'; font-size: 16px; min-height: 40px; pointer-events: auto; }
-        button { background: rgba(0, 229, 255, 0.1); color: #00E5FF; border: 1px solid #00E5FF; padding: 10px; font-family: 'Orbitron'; cursor: pointer; min-height: 44px; transition: 0.2s; pointer-events: auto; }
-        button:hover { background: #00E5FF; color: #000; box-shadow: 0 0 15px #00E5FF; }
-        
-        .split-view { display: flex; flex-direction: column; width: 100%; height: 100%; gap: 10px; flex: 1; min-height: 0; }
-        .panel { flex: 1; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 229, 255, 0.3); padding: 10px; display: flex; flex-direction: column; min-height: 0; }
-        .panel-title { font-family: 'Orbitron'; color: #00E5FF; border-bottom: 1px solid rgba(0, 229, 255, 0.3); margin-bottom: 15px; padding-bottom: 5px; font-size: 14px; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; min-height: 30px; }
-        
-        .chat-log { flex: 1; overflow-y: auto; margin-bottom: 10px; font-size: 12px; line-height: 1.4; font-family: 'Consolas', monospace; color: #aaa; }
-        #code-editor { flex: 1; font-size: 10px; background: #0c121c; padding: 10px; overflow-y: auto; white-space: pre; min-height: 0; font-family: 'Consolas', monospace; border-left: 2px solid rgba(0,229,255,0.3); }
-        
-        /* MEDIA */
-        #media-playlist { flex: 1; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid #333; margin-top: 10px; min-height: 0; }
-        .media-item { padding: 8px; border-bottom: 1px solid #333; cursor: pointer; color: #888; }
-        .media-item:hover { background: rgba(0, 229, 255, 0.1); color: #fff; }
-        .media-active { color: #00E5FF; background: rgba(0, 229, 255, 0.05); }
-
-        .setting-row { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
-        .setting-label { display: block; color: #aaa; font-size: 12px; }
-        .os-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; margin-right: 5px; box-shadow: 0 0 5px #555; }
-        .os-active { background: #00E5FF; box-shadow: 0 0 8px #00E5FF; }
-        
-        .tool-bar { display: flex; gap: 5px; }
-        .tool-btn { padding: 4px 8px; font-size: 10px; min-height: auto; margin: 0; background: rgba(0, 229, 255, 0.2); border: 1px solid #00E5FF; color: #FFF; cursor: pointer; }
-        .tool-btn:hover { background: #00E5FF; color: #000; }
-
-        @media (max-width: 768px) {
-            .modal-window { width: 95% !important; height: 85% !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; }
+        input[type="text"], select { 
+            background: rgba(0, 20, 30, 0.9); border: 1px solid #00E5FF; color: #00E5FF; 
+            padding: 10px; flex: 1; outline: none; font-family: 'Orbitron'; font-size: 16px; min-height: 40px; 
         }
+        button { 
+            background: rgba(0, 229, 255, 0.1); color: #00E5FF; border: 1px solid #00E5FF; 
+            padding: 10px; font-family: 'Orbitron'; min-height: 44px; transition: 0.2s; 
+        }
+        button:active { background: #00E5FF; color: #000; }
+
+        .chat-log { flex: 1; overflow-y: auto; margin-bottom: 10px; font-size: 12px; line-height: 1.4; font-family: 'Consolas', monospace; color: #aaa; }
+        .setting-row { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        
+        .mic-active { color: #FFA500 !important; text-shadow: 0 0 20px #FFA500; animation: pulse 1.5s infinite; }
     </style>
 </head>
 <body>
 
     <div id="start-overlay" onclick="initSystem()">
-        <div id="start-btn">INITIALIZE JARVIS</div>
-        <div style="margin-top: 15px; opacity: 0.7; font-size: 10px;">CORE VISION v66.0</div>
+        <div id="start-btn">INITIALIZE MOBILE</div>
+        <div style="margin-top: 15px; opacity: 0.7; font-size: 10px;">CORE RESTORED v72.0</div>
     </div>
 
+    <!-- REACTOR CONTAINER RESTORED -->
     <div id="reactor-container"><canvas id="reactor"></canvas></div>
     
-    <!-- INTEGRATED CORE VISION (EXPANDABLE) -->
-    <!-- Clicking the main div toggles Zoom. Specific buttons do other tasks. -->
+    <!-- INTEGRATED CORE VISION -->
     <div id="core-vision-overlay" onclick="toggleCoreZoom()">
-        <img id="vision-feed" src="" style="display: block;" onerror="this.style.display='none'; document.getElementById('core-loading').style.display='block';">
-        <video id="local-vision-feed" autoplay playsinline style="display: none;"></video>
-        <div id="core-loading" style="display: none;">SIGNAL LOST</div>
-        
-        <!-- Overlay Controls -->
+        <video id="local-vision-feed" autoplay playsinline muted></video>
         <div class="vision-controls">
-            <div class="vision-btn" onclick="event.stopPropagation(); toggleCameraSource()" title="Switch Camera"><i class="fas fa-sync-alt"></i></div>
-            <div class="vision-btn" onclick="event.stopPropagation(); toggleVisionMode()" title="Close Vision"><i class="fas fa-times"></i></div>
+            <div class="vision-btn" onclick="event.stopPropagation(); switchCameraFacing()" title="Switch Cam"><i class="fas fa-sync-alt"></i></div>
+            <div class="vision-btn" onclick="event.stopPropagation(); toggleVisionMode()" title="Close"><i class="fas fa-times"></i></div>
         </div>
     </div>
 
     <div id="mic-status">AWAITING INITIALIZATION</div>
     <div id="overlay-text">SYSTEM ONLINE</div>
 
-    <!-- COMMAND CENTER -->
-    <div id="modal-command" class="modal-window interactive">
-        <div class="modal-header" id="header-command">
+    <!-- CHAT CONSOLE -->
+    <div id="modal-command" class="modal-window">
+        <div class="modal-header">
             <span class="modal-title">MAIN CONSOLE</span>
-            <span class="close-btn interactive" onclick="closeModal('modal-command')">×</span>
+            <span class="close-btn" onclick="closeModal('modal-command')">×</span>
         </div>
         <div class="modal-body">
-            <div class="split-view">
-                <div class="panel">
-                    <div class="panel-title">
-                        <span>NEURAL LINK</span>
-                        <div style="font-size: 10px; display: flex; align-items: center;"><span id="os-dot" class="os-status-dot"></span> BRIDGE</div>
-                    </div>
-                    <div class="chat-log" id="chat-log">> SYSTEM: VISUAL APERTURE READY.<br>> SYSTEM: READY.<br></div>
-                    <div class="input-group">
-                        <input type="text" class="chat-input" id="chat-input" placeholder="Enter Command..." onkeydown="handleChat(event)">
-                        <button onclick="toggleVoiceInput()" id="modal-mic-btn"><i class="fas fa-microphone"></i></button>
-                    </div>
-                    <button onclick="resetMemory()" style="margin-top:10px; font-size:10px; border-color:#ff5555; color:#ff5555;">PURGE MEMORY</button>
-                </div>
-                <div class="panel">
-                    <div class="panel-title">
-                        <span>OUTPUT STREAM</span>
-                        <div class="tool-bar">
-                            <button class="tool-btn" onclick="copyCode()" title="Copy"><i class="fas fa-copy"></i></button>
-                            <button class="tool-btn" onclick="downloadCode()" title="Save"><i class="fas fa-download"></i></button>
-                        </div>
-                    </div>
-                    <div id="code-editor">// WAITING FOR DATA...</div>
-                </div>
+            <div class="chat-log" id="chat-log">> SYSTEM: CORE VISUALS RESTORED.<br>> SYSTEM: READY.<br></div>
+            <div class="input-group">
+                <input type="text" id="chat-input" placeholder="Ask Jarvis..." onkeydown="handleChat(event)">
+                <button onclick="toggleVoiceInput()"><i class="fas fa-microphone"></i></button>
             </div>
-            <div class="resize-handle" id="resize-command"></div>
-        </div>
-    </div>
-
-    <!-- MEDIA -->
-    <div id="modal-media" class="modal-window interactive">
-        <div class="modal-header" id="header-media">
-            <span class="modal-title">MEDIA LINK</span>
-            <span class="close-btn interactive" onclick="closeModal('modal-media')">×</span>
-        </div>
-        <div class="modal-body">
-            <input type="file" id="media-upload" accept="audio/*" multiple onchange="handleMediaSelect(this)" style="display:none;">
-            <button onclick="document.getElementById('media-upload').click()" style="width:100%">ADD SONGS</button>
-            <div id="now-playing" style="margin-top:10px; color:#00E5FF;">NO MEDIA SELECTED</div>
-            <audio id="audio-player" controls style="width: 100%; filter: invert(1) hue-rotate(180deg);"></audio>
-            <div id="media-playlist" style="margin-top:20px; flex: 1; overflow-y: auto;"></div>
-            <div class="resize-handle" id="resize-media"></div>
         </div>
     </div>
 
     <!-- SETTINGS -->
-    <div id="modal-settings" class="modal-window interactive">
-        <div class="modal-header" id="header-settings">
+    <div id="modal-settings" class="modal-window">
+        <div class="modal-header">
             <span class="modal-title">SYSTEM CONFIG</span>
-            <span class="close-btn interactive" onclick="closeModal('modal-settings')">×</span>
+            <span class="close-btn" onclick="closeModal('modal-settings')">×</span>
         </div>
         <div class="modal-body">
             <div class="setting-row"><span>GEMINI KEY</span><input type="password" id="api-key-input" onchange="saveApiKey(this.value)"></div>
-            <div class="setting-row"><span>BRIDGE URL</span><input type="text" id="bridge-url-input" onchange="saveBridgeUrl(this.value)" placeholder="https://..."></div>
             <div class="setting-row"><span>VOICE</span><select id="voice-select" onchange="saveVoiceSelection(this)"></select></div>
-            <div class="setting-row"><span>BRIDGE STATUS</span><span id="os-dot" class="os-status-dot"></span></div>
             <button onclick="testVoice()" style="width:100%; margin-top: auto;">TEST AUDIO</button>
-            <div class="resize-handle" id="resize-settings"></div>
         </div>
     </div>
 
     <script>
-        let ipcRenderer; try { if (typeof require !== 'undefined') { const electron = require('electron'); ipcRenderer = electron.ipcRenderer; } } catch (e) {}
-        const API_BASE = (window.location.protocol === 'file:') ? 'http://localhost:5000' : '';
-        let isHoveringButton = false;
-
-        window.addEventListener('mousemove', event => {
-            if (!ipcRenderer) return;
-            let el = document.elementFromPoint(event.clientX, event.clientY);
-            let isInteractive = false;
-            while (el) {
-                if (el.classList && (el.classList.contains('interactive') || el.classList.contains('close-btn') || el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.id === 'core-vision-overlay')) {
-                    isInteractive = true; break;
-                }
-                el = el.parentElement;
-            }
-            const shouldCapture = isInteractive || isHoveringButton;
-            ipcRenderer.send('set-ignore-mouse-events', !shouldCapture, { forward: true });
-        });
-
+        // --- CORE VARIABLES ---
         const canvas = document.getElementById('reactor');
         const ctx = canvas.getContext('2d');
-        let userApiKey = "", chatHistory = [];
         let width, height, centerX, centerY, scale, time = 0;
         let mouse = { x: 0, y: 0 }; 
-        let systemState = 'IDLE'; 
         
-        let micEnabled = false, simulateVisualizer = true, localBridgeEnabled = false; 
-        let batteryLevel = 1.0, isOnline = true;
-        let playlist = [], currentTrackIndex = 0, mediaDB = null;
-        let voices = [], isSpeaking = false, isAwake = false, silenceTimer = null, recognition = null;
-        let lastIdentity = "Unknown", visionPollInterval = null;
-        let usingLocalCamera = false, localStream = null;
-        let visionActive = false;
-        let isCoreExpanded = false;
+        // State
+        let userApiKey = "";
+        let systemState = 'IDLE', micEnabled = false;
+        let batteryLevel = 1.0;
+        let voices = [], recognition = null, silenceTimer = null;
         
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let analyser, dataArray; 
-        const audioPlayer = document.getElementById('audio-player');
-        
+        let visionActive = false, isCoreExpanded = false;
+        let currentFacingMode = 'environment'; 
+        let localStream = null;
+        let audioCtx, analyser, dataArray, audioPlayer;
+
         const colors = { cyan: '#00E5FF', darkCyan: 'rgba(0, 229, 255, 0.15)', orange: '#FFA500', bg: '#050a14', white: '#FFFFFF' };
         const menuItems = [
-            { id: 'med', label: 'MEDIA', icon: '\uf001', targetModal: 'modal-media', angle: -Math.PI * 0.75, opacity: 0.0, hovered: false }, 
-            { id: 'set', label: 'CONFIG', icon: '\uf013', targetModal: 'modal-settings', angle: -Math.PI * 0.25, opacity: 0.0, hovered: false }, 
-            { id: 'vis', label: 'VISION', icon: '\uf06e', targetModal: 'core-vision', angle: Math.PI * 0.25, opacity: 0.0, hovered: false },
-            { id: 'cmd', label: 'HOME', icon: '\uf015', targetModal: 'modal-command', angle: Math.PI * 0.75, opacity: 0.0, hovered: false }
+            { id: 'set', label: 'CONFIG', icon: '\uf013', targetModal: 'modal-settings', angle: -Math.PI * 0.25, opacity: 0.4, hovered: false }, 
+            { id: 'vis', label: 'VISION', icon: '\uf06e', targetModal: 'core-vision', angle: Math.PI * 0.25, opacity: 0.4, hovered: false }, 
+            { id: 'cmd', label: 'CHAT', icon: '\uf086', targetModal: 'modal-command', angle: Math.PI * 0.75, opacity: 0.4, hovered: false },
         ];
 
-        function updateStatusText() {
-            const el = document.getElementById('mic-status'); 
-            el.classList.remove('mic-active', 'mic-standby');
-            if (!micEnabled) { el.innerText = "MIC DISABLED"; } 
-            else if (isAwake) { el.innerText = "LISTENING (ACTIVE)"; el.classList.add('mic-active'); } 
-            else { el.innerText = "STANDBY (SAY 'JARVIS')"; el.classList.add('mic-standby'); }
-        }
-
-        function updateOsStatus() {
-            const dot = document.getElementById('os-dot'); if(!dot) return;
-            if(localBridgeEnabled) dot.classList.add('os-active'); else dot.classList.remove('os-active');
-        }
-
-        function initSystem() {
+        // --- INIT ---
+        async function initSystem() {
             document.getElementById('start-overlay').style.display = 'none';
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            sfxOpen();
-            micEnabled = true; document.getElementById('chk-enable-mic').checked = true;
-            localStorage.setItem('jarvis_mic_enabled', true);
-            const waitForVoices = setInterval(() => {
-                 if(speechSynthesis.getVoices().length > 0) {
-                     clearInterval(waitForVoices); populateVoices();
-                     speak("System initialized. Listening for wake word.");
-                 }
-            }, 100);
+            
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                initAudioEngine();
+                sfxOpen();
+            } catch(e) { console.log("Audio Init Failed"); }
+
+            if ('wakeLock' in navigator) { try { await navigator.wakeLock.request('screen'); } catch (err) {} }
+
+            loadMemory();
+            populateVoices();
+            micEnabled = true;
             startContinuousListening();
-            initMusicDB();
+            
+            speak("Mobile Unit Initialized.");
+            
+            // Force Visuals
+            resize();
+            draw();
         }
 
         function loadMemory() {
-            try {
-                const k = localStorage.getItem('jarvis_api_key'); if(k) { userApiKey = k; document.getElementById('api-key-input').value = k; }
-                const u = localStorage.getItem('jarvis_bridge_url'); if(u) { customBridgeUrl = u; document.getElementById('bridge-url-input').value = u; checkBridgeHealth(); }
-                const h = localStorage.getItem('jarvis_chat_history'); if(h) { try { let t = JSON.parse(h); if(t.length > 10) t = t.slice(t.length-10); chatHistory = t; } catch(e){ chatHistory=[]; }}
-                const mEn = localStorage.getItem('jarvis_mic_enabled'); if(mEn !== null) { micEnabled = (mEn === 'true'); document.getElementById('chk-enable-mic').checked = micEnabled; }
-                const lb = localStorage.getItem('jarvis_local_bridge'); 
-                if(lb !== null) { 
-                    localBridgeEnabled = (lb === 'true'); 
-                    document.getElementById('chk-local-bridge').checked = localBridgeEnabled; 
-                    updateOsStatus(); 
-                    if (localBridgeEnabled) checkBridgeHealth();
-                }
-                updateStatusText();
-            } catch(e) { console.log("Memory Load Error: " + e); }
+            const k = localStorage.getItem('jarvis_api_key'); if(k) { userApiKey = k; document.getElementById('api-key-input').value = k; }
         }
-
         function saveApiKey(k) { userApiKey = k.trim(); localStorage.setItem('jarvis_api_key', userApiKey); }
-        function saveBridgeUrl(u) { customBridgeUrl = u.trim(); localStorage.setItem('jarvis_bridge_url', customBridgeUrl); checkBridgeHealth(); }
-        function saveGenericSetting(k, v) { localStorage.setItem('jarvis_'+k, v); }
         function saveVoiceSelection(e) { const n = e.options[e.selectedIndex].getAttribute('data-name'); if(n) localStorage.setItem('jarvis_voice_name', n); }
-        function resetMemory() { chatHistory = []; localStorage.removeItem('jarvis_chat_history'); sfxClick(); }
-        
-        function toggleMicSetting(cb) { 
-            micEnabled = cb.checked; localStorage.setItem('jarvis_mic_enabled', micEnabled); 
-            updateStatusText();
-            if(micEnabled) { startContinuousListening(); } else { if(recognition) recognition.stop(); isAwake = false; }
-        }
-        function toggleSimSetting(cb) { simulateVisualizer = cb.checked; }
-        function toggleLocalBridge(cb) { 
-            localBridgeEnabled = cb.checked; localStorage.setItem('jarvis_local_bridge', localBridgeEnabled); 
-            updateOsStatus(); if(localBridgeEnabled) checkBridgeHealth();
-        }
-        
-        async function checkBridgeHealth() {
-            const dot = document.getElementById('os-dot'); if(!dot) return;
-            try { await fetch(API_BASE + '/status'); dot.style.backgroundColor = '#00FF00'; dot.style.boxShadow = '0 0 8px #00FF00'; } 
-            catch(e) { dot.style.backgroundColor = '#FF0000'; dot.style.boxShadow = '0 0 8px #FF0000'; }
-        }
 
-        function copyCode() { navigator.clipboard.writeText(document.getElementById('code-editor').textContent).then(() => alert("Copied")); }
-        function downloadCode() {
-            const blob = new Blob([document.getElementById('code-editor').textContent], { type: 'text/html' });
-            const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = "jarvis_generated.html"; a.click();
-        }
-
-        function initMusicDB() {
-            const request = indexedDB.open('JarvisMediaDB', 1);
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                if (!db.objectStoreNames.contains('songs')) { db.createObjectStore('songs', { keyPath: 'name' }); }
-            };
-            request.onsuccess = (event) => { mediaDB = event.target.result; loadPlaylistFromDB(); };
-        }
-
-        function saveSongToDB(file) {
-            if(!mediaDB) return;
-            mediaDB.transaction(['songs'], 'readwrite').objectStore('songs').put({ name: file.name, data: file });
-        }
-
-        function loadPlaylistFromDB() {
-            if(!mediaDB) return;
-            const request = mediaDB.transaction(['songs'], 'readonly').objectStore('songs').getAll();
-            request.onsuccess = () => { playlist = request.result; updatePlaylistUI(); };
-        }
-
-        function updatePlaylistUI() {
-            const list = document.getElementById('media-playlist'); list.innerHTML = "";
-            playlist.forEach((song, index) => {
-                const div = document.createElement('div');
-                div.className = 'media-item'; div.innerText = song.name;
-                if (index === currentTrackIndex) div.classList.add('media-active');
-                div.onclick = () => playTrack(index); list.appendChild(div);
-            });
-        }
-
-        function playTrack(index) {
-            if (index < 0 || index >= playlist.length) return;
-            currentTrackIndex = index;
-            const song = playlist[index];
-            audioPlayer.src = URL.createObjectURL(song.data);
-            audioPlayer.play();
-            document.getElementById('now-playing').innerText = "PLAYING: " + song.name;
-            systemState = 'PLAYING_MEDIA';
-            updatePlaylistUI();
-        }
-        
-        audioPlayer.onended = () => {
-            if (playlist.length > 0) { currentTrackIndex = (currentTrackIndex + 1) % playlist.length; playTrack(currentTrackIndex); } else { systemState = 'IDLE'; }
-        };
-        audioPlayer.onplay = () => { if (audioCtx.state === 'suspended') audioCtx.resume(); initAudioEngine(); mediaSource = audioCtx.createMediaElementSource(audioPlayer); mediaSource.connect(analyser); analyser.connect(audioCtx.destination); systemState = 'PLAYING_MEDIA'; };
-        audioPlayer.onpause = () => { systemState = 'IDLE'; };
-
-        function handleMediaSelect(input) {
-            const files = input.files;
-            if (files.length > 0) {
-                for (let i = 0; i < files.length; i++) { saveSongToDB(files[i]); playlist.push({ name: files[i].name, data: files[i] }); }
-                updatePlaylistUI();
-                if (playlist.length === files.length) playTrack(0); 
-            }
-        }
-
-        // --- WINDOW MANAGEMENT ---
-        function makeDraggable(elmnt) {
-            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-            const headerId = "header-" + elmnt.id.split('-')[1];
-            const header = document.getElementById(headerId);
-            
-            if (header) {
-                header.onmousedown = dragMouseDown;
-                header.ontouchstart = dragTouchStart;
-            }
-
-            function dragMouseDown(e) { e = e || window.event; e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY; document.onmouseup = closeDragElement; document.onmousemove = elementDrag; }
-            function dragTouchStart(e) { const touch = e.touches[0]; pos3 = touch.clientX; pos4 = touch.clientY; document.ontouchend = closeDragElement; document.ontouchmove = elementTouchDrag; }
-            function elementDrag(e) { e = e || window.event; e.preventDefault(); pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY; pos3 = e.clientX; pos4 = e.clientY; elmnt.style.top = (elmnt.offsetTop - pos2) + "px"; elmnt.style.left = (elmnt.offsetLeft - pos1) + "px"; elmnt.style.transform = "none"; }
-            function elementTouchDrag(e) { const touch = e.touches[0]; pos1 = pos3 - touch.clientX; pos2 = pos4 - touch.clientY; pos3 = touch.clientX; pos4 = touch.clientY; elmnt.style.top = (elmnt.offsetTop - pos2) + "px"; elmnt.style.left = (elmnt.offsetLeft - pos1) + "px"; elmnt.style.transform = "none"; }
-            function closeDragElement() { document.onmouseup = null; document.onmousemove = null; document.ontouchend = null; document.ontouchmove = null; }
-        }
-
-        function makeResizable(elmnt) {
-            const resizer = document.getElementById("resize-" + elmnt.id.split('-')[1]);
-            if(!resizer) return;
-            resizer.addEventListener('mousedown', initResize, false);
-            resizer.addEventListener('touchstart', initResizeTouch, false);
-            function initResize(e) { window.addEventListener('mousemove', Resize, false); window.addEventListener('mouseup', stopResize, false); }
-            function initResizeTouch(e) { window.addEventListener('touchmove', ResizeTouch, false); window.addEventListener('touchend', stopResize, false); }
-            function Resize(e) { elmnt.style.width = (e.clientX - elmnt.offsetLeft) + 'px'; elmnt.style.height = (e.clientY - elmnt.offsetTop) + 'px'; }
-            function ResizeTouch(e) { const t = e.touches[0]; elmnt.style.width = (t.clientX - elmnt.offsetLeft) + 'px'; elmnt.style.height = (t.clientY - elmnt.offsetTop) + 'px'; }
-            function stopResize() { window.removeEventListener('mousemove', Resize, false); window.removeEventListener('mouseup', stopResize, false); window.removeEventListener('touchmove', ResizeTouch, false); window.removeEventListener('touchend', stopResize, false); }
-        }
-
-        ['modal-command', 'modal-media', 'modal-settings'].forEach(id => {
-            const el = document.getElementById(id);
-            makeDraggable(el); makeResizable(el);
-        });
-
-        function openModal(id) { 
-            sfxOpen(); 
-            // Handle Core Vision Special Case
-            if (id === 'core-vision') {
-                toggleVisionMode();
-                return;
-            }
-            document.querySelectorAll('.modal-window').forEach(w => w.style.display='none');
-            const m = document.getElementById(id);
-            if(!m.style.top || m.style.display === 'none') m.style.display = 'flex';
-            else m.style.display = 'flex';
-            document.querySelectorAll('.modal-window').forEach(w => w.style.zIndex = 20);
-            m.style.zIndex = 30;
-            if(id === 'modal-command') setTimeout(() => document.getElementById('chat-input').focus(), 50);
-        }
-
-        function closeModal(id) { 
-            try { sfxClick(); } catch(e) {}
-            const m = document.getElementById(id);
-            m.classList.remove('modal-active'); 
-            m.style.display='none'; 
-        }
-
-        // --- INTEGRATED VISION LOGIC ---
-        function toggleVisionMode() {
+        // --- VISION LOGIC ---
+        async function toggleVisionMode() {
             visionActive = !visionActive;
             const core = document.getElementById('core-vision-overlay');
-            isCoreExpanded = false; // Reset zoom
-            core.classList.remove('core-expanded');
+            isCoreExpanded = false; core.classList.remove('core-expanded');
             
             if (visionActive) {
                 core.style.display = 'block';
-                if(!usingLocalCamera) {
-                    const base = getApiBase();
-                    if(base) document.getElementById('vision-feed').src = base + "/video_feed?t=" + new Date().getTime();
-                }
+                startCamera();
             } else {
                 core.style.display = 'none';
-                if (usingLocalCamera) toggleCameraSource();
-                document.getElementById('vision-feed').src = "";
+                stopCamera();
             }
             resize(); 
+        }
+
+        async function startCamera() {
+            stopCamera(); 
+            const video = document.getElementById('local-vision-feed');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } });
+                localStream = stream;
+                video.srcObject = stream;
+            } catch(e) { alert("Camera failed: " + e); }
+        }
+
+        function stopCamera() {
+            if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
+        }
+
+        function switchCameraFacing() {
+            currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+            startCamera();
         }
 
         function toggleCoreZoom() {
             const core = document.getElementById('core-vision-overlay');
             isCoreExpanded = !isCoreExpanded;
-            if (isCoreExpanded) {
-                core.classList.add('core-expanded');
-            } else {
-                core.classList.remove('core-expanded');
-            }
+            if (isCoreExpanded) core.classList.add('core-expanded');
+            else core.classList.remove('core-expanded');
         }
 
-        async function toggleCameraSource() {
-             const pc = document.getElementById('vision-feed');
-             const loc = document.getElementById('local-vision-feed');
-             
-             if(!usingLocalCamera) {
-                 try {
-                     const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-                     localStream = stream;
-                     loc.srcObject = stream;
-                     loc.style.display = 'block'; pc.style.display = 'none';
-                     usingLocalCamera = true;
-                 } catch(e) { alert("Camera Error: " + e); }
-             } else {
-                 if(localStream) localStream.getTracks().forEach(t=>t.stop());
-                 loc.style.display = 'none'; pc.style.display = 'block';
-                 const base = getApiBase();
-                 if(base) pc.src = base + "/video_feed?t=" + Date.now();
-                 usingLocalCamera = false;
-             }
+        // --- UI ---
+        function openModal(id) { 
+            sfxOpen();
+            if (id === 'core-vision') { toggleVisionMode(); return; }
+            document.querySelectorAll('.modal-window').forEach(w => w.style.display='none');
+            document.getElementById(id).style.display = 'flex';
         }
 
+        function closeModal(id) { sfxClick(); document.getElementById(id).style.display='none'; }
+
+        function toggleVoiceInput() {
+            wakeUp();
+            document.getElementById('chat-log').innerHTML += "<br>> LISTENING...";
+        }
+
+        // --- AUDIO ---
         function populateVoices() {
             voices = speechSynthesis.getVoices();
             const s = document.getElementById('voice-select'); s.innerHTML = '';
-            if (voices.length === 0) { s.add(new Option("Loading Voices...")); setTimeout(populateVoices, 100); return; }
+            if (voices.length === 0) { s.add(new Option("Loading...")); setTimeout(populateVoices, 100); return; }
             const sv = localStorage.getItem('jarvis_voice_name');
             voices.forEach(v => { 
                 const o = new Option(v.name); o.setAttribute('data-name', v.name);
@@ -536,117 +289,95 @@
             });
         }
         speechSynthesis.onvoiceschanged = populateVoices;
-        populateVoices();
 
-        function speak(t) { 
-            speechSynthesis.cancel();
-            if(silenceTimer) clearTimeout(silenceTimer);
-            isSpeaking = true;
-            const cleanText = t.replace(/\*/g, '');
-            const u = new SpeechSynthesisUtterance(cleanText); 
-            const n = localStorage.getItem('jarvis_voice_name');
-            if (voices.length > 0) { const v = voices.find(x => x.name === n); if (v) u.voice = v; }
-            u.onend = () => {
-                isSpeaking = false;
-                if (isAwake) { document.getElementById('mic-status').innerText = "LISTENING (ACTIVE)"; resetSilenceTimer(); }
-                else { document.getElementById('mic-status').innerText = "STANDBY (SAY 'JARVIS')"; }
-            };
-            speechSynthesis.speak(u); 
+        function speak(text) {
+            try {
+                speechSynthesis.cancel();
+                isSpeaking = true;
+                const u = new SpeechSynthesisUtterance(text);
+                const n = localStorage.getItem('jarvis_voice_name');
+                if (voices.length > 0) { const v = voices.find(x => x.name === n); if (v) u.voice = v; }
+                u.onend = () => { isSpeaking = false; if(!isAwake) resetSilenceTimer(); };
+                speechSynthesis.speak(u);
+            } catch(e) {}
         }
-        
-        function testVoice() { if(audioCtx.state === 'suspended') audioCtx.resume(); speak("Audio systems nominal."); sfxOpen(); }
 
         function startContinuousListening() {
-            if (!('webkitSpeechRecognition' in window)) {
-                document.getElementById('chat-log').innerHTML += "<br>[SYSTEM] SPEECH API NOT SUPPORTED.";
-                return;
-            }
+            if (!('webkitSpeechRecognition' in window)) return;
             recognition = new webkitSpeechRecognition();
-            recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'en-GB';
-            
-            recognition.onerror = (event) => {
-                if(event.error !== 'no-speech') {
-                   console.log("[MIC ERROR]: " + event.error);
-                }
+            recognition.continuous = true; recognition.lang = 'en-US';
+            recognition.onend = () => { if(micEnabled) setTimeout(() => { try{recognition.start();}catch(e){} }, 1000); };
+            recognition.onresult = (e) => {
+                const txt = e.results[e.results.length-1][0].transcript.trim();
+                processVoiceInput(txt);
             };
-
-            recognition.onend = () => { 
-                if(micEnabled) { setTimeout(() => { try { recognition.start(); } catch(e){} }, 1000); }
-            };
-            
-            recognition.onresult = (event) => {
-                const transcript = event.results[event.results.length - 1][0].transcript.trim();
-                processVoiceInput(transcript);
-            };
-
-            try { if(micEnabled) recognition.start(); } catch(e){}
+            try { recognition.start(); } catch(e){}
             updateStatusText();
         }
 
         function processVoiceInput(text) {
-            const lowerText = text.toLowerCase();
-            if (isSpeaking) return; 
+            const lower = text.toLowerCase();
+            if (isSpeaking) return;
             if (!isAwake) {
-                if (lowerText.includes("jarvis")) {
+                if (lower.includes("jarvis")) {
                     wakeUp();
-                    const commandPart = lowerText.split("jarvis")[1];
-                    if (commandPart && commandPart.trim().length > 2) {
-                        handleChat({ key: 'Enter', target: { value: commandPart.trim() }, isSystemEvent: false });
-                    }
+                    const cmd = lower.split("jarvis")[1];
+                    if(cmd && cmd.trim().length > 2) handleChat({key:'Enter', target:{value:cmd.trim()}});
                 }
                 return;
             }
             resetSilenceTimer();
-            if (lowerText.includes("that's all") || lowerText.includes("go to sleep")) {
-                goToSleep();
-                return;
-            }
+            if (lower.includes("sleep")) { isAwake = false; updateStatusText(); return; }
             document.getElementById('chat-input').value = text;
-            handleChat({ key: 'Enter', target: document.getElementById('chat-input'), isSystemEvent: false });
+            handleChat({key:'Enter', target:{value:text}});
         }
 
-        function wakeUp() { isAwake = true; systemState = 'LISTENING'; playTone(800, 'sine', 0.1); updateStatusText(); resetSilenceTimer(); }
-        function goToSleep() { isAwake = false; systemState = 'IDLE'; if(silenceTimer) clearTimeout(silenceTimer); updateStatusText(); playTone(400, 'sine', 0.1); }
-        function resetSilenceTimer() { if(silenceTimer) clearTimeout(silenceTimer); if (!isSpeaking) silenceTimer = setTimeout(() => { goToSleep(); }, 30000); }
-
-        function updatePointer(x, y) {
-            const r = canvas.getBoundingClientRect();
-            mouse.x = x - r.left; mouse.y = y - r.top;
+        function wakeUp() { isAwake = true; sfxOpen(); updateStatusText(); resetSilenceTimer(); }
+        function resetSilenceTimer() { 
+            if(silenceTimer) clearTimeout(silenceTimer); 
+            silenceTimer = setTimeout(() => { isAwake = false; updateStatusText(); }, 15000); 
         }
-
-        window.addEventListener('mousemove', (e) => updatePointer(e.clientX, e.clientY));
-        window.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 0) {
-                updatePointer(e.touches[0].clientX, e.touches[0].clientY);
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-                handleInteraction();
-            }
-        }, {passive: false});
-        
-        canvas.addEventListener('mousedown', (e) => {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            handleInteraction();
-        });
-
-        function handleInteraction() {
-            const mx = mouse.x - centerX, my = mouse.y - centerY;
-            const mDist = Math.sqrt(mx*mx + my*my);
-            if (mDist < scale * 0.5) { 
-                if(micEnabled) toggleVoiceInput(); else sfxError();
-                return; 
-            }
-            menuItems.forEach(item => { 
-                if(item.hovered && item.opacity > 0.5) openModal(item.targetModal); 
-            });
+        function updateStatusText() {
+            const el = document.getElementById('mic-status');
+            if (isAwake) { el.innerText = "LISTENING"; el.classList.add('mic-active'); }
+            else { el.innerText = "STANDBY"; el.classList.remove('mic-active'); }
         }
+        function testVoice() { speak("Audio systems nominal."); sfxOpen(); }
 
-        function resize() { 
-            width = window.innerWidth; height = window.innerHeight; 
-            canvas.width = width; canvas.height = height; 
-            centerX = width / 2; centerY = height / 2; 
-            scale = Math.min(width, height) * 0.19;
+        async function handleChat(e) {
+            if(e.key !== 'Enter') return;
+            const msg = e.target.value; if(!msg) return; e.target.value = "";
+            const log = document.getElementById('chat-log');
+            log.innerHTML += `<br><span style="color:#FFF">> ME:</span> ${msg}`;
             
-            // Update Core Vision Size
+            const lower = msg.toLowerCase();
+            if(lower.includes('config')) { openModal('modal-settings'); return; }
+            if(lower.includes('vision')) { toggleVisionMode(); return; }
+            if(!userApiKey) { speak("API Key required."); openModal('modal-settings'); return; }
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${userApiKey}`, {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: msg }] }] })
+                });
+                const json = await res.json();
+                const txt = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                if(txt) {
+                    log.innerHTML += `<br><span style="color:#00E5FF">> JARVIS:</span> ${txt}`;
+                    speak(txt);
+                    log.scrollTop = log.scrollHeight;
+                }
+            } catch(e) { log.innerHTML += `<br><span style="color:red">> ERROR: Network</span>`; }
+        }
+
+        // --- DRAWING & TOUCH ---
+        window.addEventListener('resize', resize);
+        function resize() {
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
+            centerX = width / 2; centerY = height / 2;
+            scale = Math.min(width, height) * 0.40; // Mobile Scale
+
             const coreSize = (scale * 0.30) * 2; 
             const cv = document.getElementById('core-vision-overlay');
             if(cv && !cv.classList.contains('core-expanded')) {
@@ -654,116 +385,101 @@
                 cv.style.height = coreSize + 'px';
             }
         }
-        window.addEventListener('resize', resize);
+        resize();
 
-        // --- SFX FUNCTIONS ---
+        function handleTouch(e) {
+            const t = e.touches ? e.touches[0] : e;
+            const rect = canvas.getBoundingClientRect();
+            const mx = t.clientX - rect.left - centerX;
+            const my = t.clientY - rect.top - centerY;
+            const dist = Math.sqrt(mx*mx + my*my);
+            const angle = Math.atan2(my, mx);
+            
+            if (dist > scale * 1.3 && dist < scale * 1.7) {
+                for (let item of menuItems) {
+                     let diff = angle - item.angle;
+                     while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2;
+                     if (Math.abs(diff) < 0.4) { openModal(item.targetModal); return; }
+                }
+            }
+        }
+        window.addEventListener('touchstart', handleTouch);
+        window.addEventListener('mousedown', handleTouch);
+
         function initAudioEngine() {
-            if(!analyser) {
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 64; 
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-            }
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64; 
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
         }
-
-        function playTone(freq, type, duration) {
-            initAudioEngine();
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + duration);
-        }
-        function sfxOpen() { playTone(600, 'sawtooth', 0.15); }
-        function sfxClick() { playTone(1200, 'square', 0.1); }
-        function sfxHover() { playTone(800, 'sine', 0.05); }
-        function sfxError() { playTone(150, 'sawtooth', 0.3); }
-
-        function drawLinksInterface() {
-            if (!width || !height) {
-                requestAnimationFrame(drawLinksInterface);
-                return;
-            }
+        function sfxOpen() { 
             try {
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.frequency.value = 600; gain.gain.value = 0.1;
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } catch(e) {}
+        }
+        function sfxClick() { 
+             try {
+                 const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                 osc.connect(gain); gain.connect(audioCtx.destination);
+                 osc.type = 'square'; osc.frequency.value = 1200; gain.gain.value = 0.05;
+                 osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+             } catch(e) {}
+        }
+
+        function draw() {
+            try {
+                ctx.setTransform(1,0,0,1,0,0);
+                ctx.clearRect(0,0,width,height);
                 ctx.translate(centerX, centerY);
-
-                let anyButtonHovered = false;
-                const arcRadius = scale * 1.3; 
-                const mx = mouse.x - centerX, my = mouse.y - centerY;
-                const distToCenter = Math.sqrt(mx*mx + my*my);
-
+                
                 let audioData = 0;
-                if (analyser && (systemState === 'LISTENING' || systemState === 'SPEAKING' || systemState === 'PLAYING_MEDIA')) {
+                if (analyser && (isAwake || isSpeaking)) {
                     analyser.getByteFrequencyData(dataArray);
                     let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
                     audioData = (sum / dataArray.length) / 255; 
                 }
-                const batVal = batteryLevel || 1.0;
-                let statusColor = colors.white;
-                if (systemState === 'LISTENING') statusColor = colors.orange;
-                if (systemState === 'SPEAKING') statusColor = colors.cyan;
-                if (systemState === 'PLAYING_MEDIA') statusColor = '#00FF00'; 
 
-                // DRAW LAYERS
+                // REACTOR MK.III LAYERS
                 ctx.save(); ctx.rotate(time * 0.0005); 
-                for (let i = 0; i < 120; i++) {
-                    ctx.rotate(Math.PI * 2 / 120); ctx.beginPath();
-                    let len = (i % 10 === 0) ? 20 : 8; ctx.moveTo(scale * 1.0, 0); ctx.lineTo(scale * 1.0 + len, 0);
-                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = (i % 10 === 0) ? 3 : 1; ctx.stroke();
+                for (let i = 0; i < 60; i++) {
+                    ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(scale*1.0,0); ctx.lineTo(scale*1.1,0);
+                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 1; ctx.stroke();
                 }
                 ctx.restore();
 
                 ctx.save(); ctx.rotate(-time * 0.001);
-                const r2 = scale * 0.85; ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)'; 
+                ctx.lineWidth = scale * 0.12; ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)';
                 for(let j=0; j<3; j++) {
-                    const arcLen = (Math.PI/2.5) * batVal;
-                    ctx.beginPath(); ctx.arc(0, 0, r2, 0, arcLen); ctx.lineWidth = scale * 0.12; ctx.stroke();
-                    ctx.beginPath(); ctx.arc(0, 0, r2, Math.PI/2.5, Math.PI*2/3); ctx.lineWidth = 2; ctx.stroke();
-                    ctx.rotate(Math.PI * 2 / 3);
+                    ctx.beginPath(); ctx.arc(0, 0, scale*0.85, 0, 1.2); ctx.stroke(); ctx.rotate(Math.PI*2/3);
                 }
                 ctx.restore();
 
-                ctx.save(); ctx.rotate(time * 0.002);
-                const r3 = scale * 0.75;
-                for (let k = 0; k < 60; k++) {
-                    ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(r3, -3); ctx.lineTo(r3, 3);
-                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2; ctx.stroke();
-                }
-                ctx.restore();
+                ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0,0, scale*0.75, 0, Math.PI*2); ctx.stroke(); ctx.restore();
 
-                ctx.save();
-                const spinSpeed = (systemState === 'PROCESSING') ? 0.015 : 0.003;
-                ctx.rotate(-time * spinSpeed);
-                const r4 = scale * 0.65; ctx.strokeStyle = colors.cyan; ctx.lineWidth = scale * 0.1;
+                ctx.save(); ctx.rotate(-time * 0.003); ctx.lineWidth = scale * 0.1; ctx.strokeStyle = colors.cyan;
                 for(let l=0; l<2; l++) {
-                    ctx.beginPath(); ctx.arc(0, 0, r4, 0, Math.PI/1.5); ctx.stroke(); ctx.rotate(Math.PI);
+                    ctx.beginPath(); ctx.arc(0,0, scale*0.65, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI);
                 }
                 ctx.restore();
 
-                ctx.save(); ctx.rotate(time * 0.01); 
-                const r5 = scale * 0.55; ctx.beginPath();
-                const baseWidth = 8; const audioWidth = baseWidth + (audioData * 40); 
-                ctx.arc(0, 0, r5, 0, Math.PI * 0.66); ctx.lineWidth = audioWidth;
-                ctx.strokeStyle = "#FFD700"; ctx.shadowColor = "#FFD700"; ctx.shadowBlur = 15 + (audioData * 30);
-                ctx.stroke();
-                ctx.restore();
+                ctx.save(); ctx.rotate(time * 0.01);
+                const audioWidth = 6 + (audioData * 30);
+                ctx.lineWidth = audioWidth; ctx.strokeStyle = colors.orange; ctx.shadowColor = colors.orange; ctx.shadowBlur = 15;
+                ctx.beginPath(); ctx.arc(0,0, scale*0.55, 0, 2.0); ctx.stroke(); ctx.restore();
 
                 ctx.save(); ctx.rotate(time * 0.02);
-                const r6 = scale * 0.45; ctx.beginPath();
-                ctx.arc(0, 0, r6, 0, Math.PI * 2); ctx.lineWidth = 4;
-                ctx.strokeStyle = statusColor; ctx.shadowColor = statusColor; ctx.shadowBlur = 20;
-                ctx.stroke();
-                ctx.restore();
+                ctx.lineWidth = 3; ctx.strokeStyle = colors.white; ctx.shadowColor = colors.white; ctx.shadowBlur = 10;
+                ctx.beginPath(); ctx.arc(0,0, scale*0.45, 0, Math.PI*2); ctx.stroke(); ctx.restore();
 
                 // 7. Core (Only draw if Vision is NOT active)
                 if (!visionActive) {
                     ctx.save();
-                    const r7 = scale * 0.30; ctx.fillStyle = colors.cyan; ctx.shadowBlur = 50; ctx.shadowColor = colors.cyan;
-                    const pulseSpeed = (systemState === 'PROCESSING') ? 0.2 : 0.05;
-                    ctx.globalAlpha = 0.6 + Math.sin(time * pulseSpeed) * 0.2;
-                    ctx.beginPath(); ctx.arc(0, 0, r7, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = colors.cyan; ctx.shadowColor = colors.cyan; ctx.shadowBlur = 40;
+                    ctx.globalAlpha = 0.6 + Math.sin(time * 0.05) * 0.2;
+                    ctx.beginPath(); ctx.arc(0,0, scale*0.30, 0, Math.PI*2); ctx.fill();
                     
                     ctx.globalAlpha = 1.0; ctx.fillStyle = "#FFFFFF";
                     ctx.font = `bold ${scale * 0.15}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -771,52 +487,34 @@
                     ctx.restore();
                 }
 
-                // BUTTONS
-                menuItems.forEach((item) => {
-                    const startA = item.angle - (Math.PI*0.15);
-                    const endA = item.angle + (Math.PI*0.15);
-                    const angleMouse = Math.atan2(my, mx);
-                    let angleDiff = angleMouse - item.angle;
-                    while(angleDiff < -Math.PI) angleDiff += Math.PI*2;
-                    while(angleDiff > Math.PI) angleDiff -= Math.PI*2;
+                // ARC BUTTONS
+                menuItems.forEach(item => {
+                    const r = scale * 1.4;
+                    const x = Math.cos(item.angle) * r;
+                    const y = Math.sin(item.angle) * r;
                     
-                    let isHover = false;
-                    if (distToCenter > scale*1.1 && distToCenter < scale*1.6 && Math.abs(angleDiff) < 0.2) {
-                        isHover = true; anyButtonHovered = true;
-                        if (!item.hovered) sfxHover(); 
-                        item.opacity = Math.min(item.opacity + 0.15, 1.0); // Fade in to 100%
-                    } else { 
-                        item.opacity = Math.max(item.opacity - 0.1, 0.0); // Fade out to 0%
-                    }
-                    
-                    if (item.opacity > 0.01) {
-                        ctx.save(); ctx.globalAlpha = item.opacity;
-                        const btnRadius = scale * 1.4; 
-                        ctx.beginPath(); ctx.arc(0, 0, btnRadius, startA, endA);
-                        ctx.strokeStyle = colors.orange; ctx.lineWidth = 30; ctx.stroke();
-                        ctx.fillStyle = "#fff"; ctx.font = "12px Orbitron";
-                        const textX = Math.cos(item.angle) * btnRadius; const textY = Math.sin(item.angle) * btnRadius;
-                        ctx.fillText(item.label, textX, textY);
-                        ctx.restore();
-                    }
+                    ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI*2); 
+                    ctx.fillStyle = "rgba(0, 229, 255, 0.1)"; ctx.fill();
+                    ctx.strokeStyle = colors.cyan; ctx.lineWidth = 2; ctx.stroke();
+
+                    ctx.fillStyle = "#FFF"; ctx.font = "10px Orbitron";
+                    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    ctx.fillText(item.label, x, y);
                 });
-                
-                if(!anyButtonHovered) document.body.style.cursor = 'default';
-                else document.body.style.cursor = 'pointer';
-                
-                isHoveringButton = anyButtonHovered;
-                ctx.setTransform(1, 0, 0, 1, 0, 0); time += 1; requestAnimationFrame(drawLinksInterface);
+
+                time++;
+                requestAnimationFrame(draw);
             } catch(e) {
-                console.log("Render Error: " + e);
-                requestAnimationFrame(drawLinksInterface);
+                requestAnimationFrame(draw);
             }
         }
 
         window.addEventListener('load', () => {
-            loadMemory(); 
             resize();
-            drawLinksInterface();
+            draw();
         });
     </script>
 </body>
 </html>
+
+
