@@ -1,46 +1,38 @@
-const CACHE_NAME = 'jarvis-core-v2';
+const CACHE_NAME = 'jarvis-mobile-v3';
+const REPO_SCOPE = '/jarvis-uplink/';
+
 const FILES_TO_CACHE = [
-  './index.html',
-  './manifest.json'
+  REPO_SCOPE,
+  REPO_SCOPE + 'index.html',
+  REPO_SCOPE + 'manifest.json'
 ];
 
-// Install: Cache critical files only first
 self.addEventListener('install', (evt) => {
   evt.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(FILES_TO_CACHE);
+      // We use 'addAll' but catch errors so one missing file doesn't break the install
+      return cache.addAll(FILES_TO_CACHE).catch(err => console.error("Cache Error", err));
     })
   );
   self.skipWaiting();
 });
 
-// Activate: Clean old caches
 self.addEventListener('activate', (evt) => {
   evt.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== CACHE_NAME) {
-          return caches.delete(key);
-        }
+        if (key !== CACHE_NAME) return caches.delete(key);
       }));
     })
   );
   self.clients.claim();
 });
 
-// Fetch: Stale-while-revalidate strategy
-// This ensures the app loads fast from cache, then updates in background
 self.addEventListener('fetch', (evt) => {
-  if (evt.request.mode !== 'navigate') {
-    return;
-  }
+  if (evt.request.mode !== 'navigate') return;
   evt.respondWith(
-    fetch(evt.request)
-      .catch(() => {
-        return caches.open(CACHE_NAME)
-          .then((cache) => {
-            return cache.match('./index.html');
-          });
-      })
+    fetch(evt.request).catch(() => {
+      return caches.match(REPO_SCOPE) || caches.match(REPO_SCOPE + 'index.html');
+    })
   );
 });
