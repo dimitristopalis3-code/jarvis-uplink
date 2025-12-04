@@ -51,32 +51,6 @@
         #local-vision-feed { width: 100%; height: 100%; object-fit: cover; }
         #local-vision-feed.mirrored { transform: scaleX(-1); }
 
-        /* CSS HUD OVERLAY */
-        .hud-overlay {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 250px; height: 250px;
-            pointer-events: none; z-index: 15;
-            display: flex; justify-content: center; align-items: center;
-        }
-        .hud-ring-inner {
-            position: absolute; width: 60%; height: 60%;
-            border: 2px dashed var(--primary); border-radius: 50%;
-            box-shadow: 0 0 10px var(--secondary);
-            animation: hud-spin-cw 10s linear infinite;
-        }
-        .hud-ring-outer {
-            position: absolute; width: 100%; height: 100%;
-            border: 3px solid var(--primary); border-radius: 50%;
-            border-left-color: transparent; border-right-color: transparent;
-            box-shadow: 0 0 15px var(--secondary);
-            animation: hud-spin-ccw 12s linear infinite;
-        }
-        .hud-crosshair-v { position: absolute; width: 1px; height: 30%; background: var(--primary); opacity: 0.7; }
-        .hud-crosshair-h { position: absolute; width: 30%; height: 1px; background: var(--primary); opacity: 0.7; }
-        @keyframes hud-spin-cw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes hud-spin-ccw { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
-
         /* AR Overlay Canvas */
         #vision-ar-canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -97,6 +71,7 @@
         }
         .v-btn:active { transform: scale(0.95); background: rgba(0, 229, 255, 0.2); }
         .v-btn.recording { border-color: red; color: red; animation: pulse-red 1s infinite; }
+
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 rgba(255,0,0,0.5); } 70% { box-shadow: 0 0 20px rgba(255,0,0,0); } 100% { box-shadow: 0 0 0 rgba(255,0,0,0); } }
 
         /* --- MOTO HUD --- */
@@ -174,7 +149,6 @@
         }
         #playlist-container::-webkit-scrollbar { width: 5px; }
         #playlist-container::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 2px; }
-        
         .track-item {
             padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
             font-family: 'Share Tech Mono'; font-size: 14px; color: #888; transition: all 0.2s;
@@ -232,14 +206,6 @@
         <!-- Video Feed Layer -->
         <div id="vision-feed-layer">
             <video id="local-vision-feed" autoplay playsinline muted></video>
-        </div>
-
-        <!-- NEW CSS HUD OVERLAY -->
-        <div class="hud-overlay">
-            <div class="hud-ring-outer"></div>
-            <div class="hud-ring-inner"></div>
-            <div class="hud-crosshair-v"></div>
-            <div class="hud-crosshair-h"></div>
         </div>
 
         <!-- AR Graphics Layer -->
@@ -506,12 +472,17 @@
                 arCtx.setTransform(1,0,0,1,0,0);
                 arCtx.clearRect(0,0, arCvs.width, arCvs.height);
                 
+                // Note: Static Center Reactor Removed per request. Screen is clean.
+
                 if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
                     const video = document.getElementById('local-vision-feed');
                     try {
                         const predictions = await faceModel.estimateFaces(video, false);
+                        
                         if (predictions.length > 0) {
                             const pred = predictions[0]; // Focus on primary face
+                            
+                            // Calc Center
                             const vidW = video.videoWidth; const vidH = video.videoHeight;
                             const cvsW = arCvs.width; const cvsH = arCvs.height;
                             const scaleFit = Math.max(cvsW / vidW, cvsH / vidH);
@@ -549,9 +520,11 @@
                         if (lockedTarget.active) {
                             drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
                         }
+
                     } catch (err) {}
                 }
             }
+
             time++;
             animationFrame = requestAnimationFrame(draw);
         }
@@ -588,7 +561,7 @@
                     return { index: matchIndex, score: maxSim };
                 });
 
-                if (result && result.score > 0.82) {
+                if (result && result.score > 0.82) { // Threshold
                     const p = facesDB[result.index];
                     lockedTarget.identity = { 
                         name: `ID: ${p.name.toUpperCase()}`, 
