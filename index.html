@@ -6,9 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
     <title>JARVIS: MOBILE UNIT</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -17,7 +14,7 @@
     <style>
         :root {
             --primary: #00E5FF;
-            --secondary: rgba(0, 229, 255, 0.15);
+            --secondary: rgba(0, 229, 255, 0.2);
             --bg-color: #000000;
             --safe-top: env(safe-area-inset-top);
             --safe-bottom: env(safe-area-inset-bottom);
@@ -30,7 +27,7 @@
         #reactor-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; z-index: 0; opacity: 0.8; pointer-events: none; }
         canvas { display: block; }
         
-        /* --- NEW VISION SYSTEM (CIRCULAR REACTOR STYLE) --- */
+        /* --- VISION SYSTEM (FIXED) --- */
         #vision-container {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #000; z-index: 200; display: none;
@@ -38,34 +35,26 @@
         }
 
         .vision-circle-wrapper {
-            position: relative; width: 85vw; height: 85vw;
+            position: relative; width: 90vw; height: 90vw;
             max-width: 500px; max-height: 500px;
             display: flex; justify-content: center; align-items: center;
         }
 
-        /* Camera Feed Circle */
         #vision-feed-circle {
             width: 80%; height: 80%; border-radius: 50%;
             overflow: hidden; position: relative;
             border: 2px solid var(--primary);
             box-shadow: 0 0 30px var(--secondary);
-            z-index: 10;
+            z-index: 10; background: #050a10;
         }
         
         #vision-feed-circle video, #vision-feed-circle img {
             width: 100%; height: 100%; object-fit: cover;
-            transform: scaleX(-1); /* Mirror effect */
+            transform: scaleX(-1);
         }
 
-        /* Rotating Reactor Rings */
-        .v-ring {
-            position: absolute; border-radius: 50%;
-            border: 1px solid transparent;
-            border-top: 2px solid var(--primary);
-            border-bottom: 2px solid var(--primary);
-            box-shadow: 0 0 15px var(--secondary);
-            pointer-events: none;
-        }
+        /* Rings */
+        .v-ring { position: absolute; border-radius: 50%; border: 1px solid transparent; border-top: 2px solid var(--primary); border-bottom: 2px solid var(--primary); box-shadow: 0 0 15px var(--secondary); pointer-events: none; }
         .vr-1 { width: 100%; height: 100%; animation: spin 4s linear infinite; opacity: 0.8; }
         .vr-2 { width: 90%; height: 90%; animation: spin-rev 6s linear infinite; border-left: 2px solid var(--primary); border-top: transparent; opacity: 0.6; }
         .vr-3 { width: 110%; height: 110%; border: 1px dashed var(--primary); animation: spin 10s linear infinite; opacity: 0.3; }
@@ -73,92 +62,101 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes spin-rev { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
 
-        /* Vision UI Overlay */
-        .vision-ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 20; pointer-events: none;
-            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
-        }
-        .face-brackets {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 40%; height: 40%; border: 1px solid rgba(0,229,255,0.5);
-            display: none; /* Shown on lock */
-        }
-        .face-brackets::before, .face-brackets::after {
-            content: ''; position: absolute; width: 10px; height: 10px; border-color: var(--primary); border-style: solid;
-        }
-        .face-brackets::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-        .face-brackets::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-
+        /* Vision UI */
         .vision-controls-bar {
             position: absolute; bottom: 40px; width: 100%;
-            display: flex; justify-content: center; gap: 20px; pointer-events: auto;
+            display: flex; justify-content: center; gap: 30px; pointer-events: auto; z-index: 50;
         }
         
         .v-btn {
             background: rgba(0,0,0,0.8); border: 1px solid var(--primary);
-            color: var(--primary); border-radius: 50%; width: 50px; height: 50px;
+            color: var(--primary); border-radius: 50%; width: 60px; height: 60px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 18px; box-shadow: 0 0 10px var(--secondary);
+            font-size: 20px; box-shadow: 0 0 15px var(--secondary); cursor: pointer;
         }
-        
-        .scan-line {
-            position: absolute; top: 0; left: 0; width: 100%; height: 2px;
-            background: var(--primary); box-shadow: 0 0 10px var(--primary);
-            animation: scan 2s ease-in-out infinite; opacity: 0.5;
-        }
-        @keyframes scan { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .v-btn:active { background: var(--primary); color: #000; }
 
-        /* --- MOTO HUD (CYAN THEME & RESIZED) --- */
+        .face-brackets {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 50%; height: 50%; border: 1px solid rgba(0,229,255,0.5);
+            display: none; pointer-events: none;
+        }
+        .face-brackets::before, .face-brackets::after { content: ''; position: absolute; width: 15px; height: 15px; border-color: var(--primary); border-style: solid; }
+        .face-brackets::before { top: -1px; left: -1px; border-width: 3px 0 0 3px; }
+        .face-brackets::after { bottom: -1px; right: -1px; border-width: 0 3px 3px 0; }
+
+        /* --- MOTO HUD (AIRCRAFT STYLE) --- */
         #moto-hud {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #000; z-index: 300; display: none; flex-direction: column;
             color: var(--primary); font-family: 'Share Tech Mono', monospace;
-            padding-top: max(20px, var(--safe-top));
-            padding-bottom: max(20px, var(--safe-bottom));
+            padding-top: max(10px, var(--safe-top));
+            padding-bottom: max(10px, var(--safe-bottom));
         }
         
         .hud-top {
-            height: 50px; border-bottom: 2px solid var(--primary);
+            height: 60px; border-bottom: 2px solid var(--primary);
             display: flex; align-items: center; justify-content: center;
             overflow: hidden; position: relative; background: rgba(0, 229, 255, 0.05);
             flex-shrink: 0;
         }
-        .compass-tape { display: flex; gap: 50px; font-size: 20px; font-weight: bold; transition: transform 0.1s linear; color: var(--primary); }
-        .compass-marker { position: absolute; bottom: 0; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 10px solid var(--primary); }
+        .compass-tape { display: flex; gap: 60px; font-size: 22px; font-weight: bold; transition: transform 0.1s linear; color: var(--primary); will-change: transform; }
+        .compass-marker { position: absolute; bottom: 0; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 12px solid var(--primary); z-index: 5; }
 
         .hud-mid {
-            flex: 1; display: flex; align-items: center; justify-content: center;
-            position: relative; min-height: 0; /* Critical for flex resizing */
+            flex: 1; position: relative; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
         }
 
-        .speed-box { text-align: center; z-index: 2; }
-        .speed-val { font-size: clamp(80px, 20vw, 140px); font-weight: 900; font-family: 'Orbitron'; color: #fff; text-shadow: 0 0 20px var(--primary); line-height: 0.9; }
-        .speed-unit { font-size: 20px; letter-spacing: 5px; color: var(--primary); opacity: 0.8; margin-top: 10px; }
-
-        .lean-bar {
-            position: absolute; top: 20%; bottom: 20%; width: 15px;
-            border: 1px solid rgba(0,229,255,0.3); background: rgba(0,0,0,0.5);
-            display: flex; flex-direction: column-reverse;
+        /* Artificial Horizon */
+        .horizon-line {
+            position: absolute; width: 150vw; height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            top: 50%; left: 50%;
+            margin-left: -75vw; /* Center it */
+            transition: transform 0.1s linear;
         }
-        .lb-left { left: 20px; } .lb-right { right: 20px; }
-        .lb-fill { width: 100%; background: var(--primary); transition: height 0.1s; box-shadow: 0 0 10px var(--primary); }
+        
+        /* Pitch Ladder lines (Decorations on horizon) */
+        .horizon-line::after {
+            content: ''; position: absolute; top: -100px; left: 0; width: 100%; height: 200px;
+            background: repeating-linear-gradient(transparent, transparent 49px, rgba(0,229,255,0.2) 50px);
+            pointer-events: none;
+        }
+
+        /* Fixed Bike Marker */
+        .hud-crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 200px; height: 60px; z-index: 10;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .wing-left, .wing-right { width: 60px; height: 4px; background: var(--primary); border: 1px solid #000; }
+        .wing-center { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); margin: 0 5px; }
+
+        /* Speed Overlay */
+        .speed-overlay {
+            position: absolute; top: 15%; width: 100%; text-align: center;
+            text-shadow: 0 0 10px #000; z-index: 20;
+        }
+        .speed-val { font-size: 100px; font-weight: 900; font-family: 'Orbitron'; color: #fff; text-shadow: 0 0 20px var(--primary); line-height: 1; }
+        .speed-unit { font-size: 18px; letter-spacing: 5px; color: var(--primary); font-weight: bold; }
 
         .hud-bot {
-            height: 70px; display: flex; justify-content: space-between; align-items: center;
-            padding: 0 20px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.8);
+            height: 80px; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9);
             flex-shrink: 0;
         }
         .hud-btn {
             background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary);
-            color: var(--primary); padding: 10px 20px; font-family: 'Orbitron';
-            font-weight: bold; font-size: 14px; display: flex; gap: 10px; align-items: center;
+            color: var(--primary); width: 60px; height: 60px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 24px;
         }
-        .hud-time { font-size: 28px; font-weight: bold; color: #fff; text-shadow: 0 0 5px var(--primary); }
+        .hud-time { font-size: 32px; font-weight: bold; color: #fff; }
 
         /* GENERAL UI */
         #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #start-btn { padding: 20px 40px; border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-size: 18px; font-weight: 900; animation: pulse 2s infinite; }
+        #start-btn { padding: 20px 40px; border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-size: 18px; font-weight: 900; animation: pulse 2s infinite; cursor: pointer; }
         @keyframes pulse { 0% { box-shadow: 0 0 10px var(--secondary); } 50% { box-shadow: 0 0 25px var(--primary); border-color: #fff; } 100% { box-shadow: 0 0 10px var(--secondary); } }
 
         /* MODALS */
@@ -175,7 +173,8 @@
         /* DB FORM */
         .db-entry { border: 1px solid var(--secondary); padding: 10px; border-radius: 5px; display: flex; gap: 10px; align-items: center; }
         .db-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 1px solid var(--primary); }
-        input { background: #111; border: 1px solid #333; color: var(--primary); padding: 10px; width: 100%; font-family: 'Share Tech Mono'; }
+        input { background: #111; border: 1px solid #333; color: var(--primary); padding: 15px; width: 100%; font-family: 'Share Tech Mono'; margin-bottom: 10px; }
+        .text-btn { padding: 15px; background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-weight: bold; width: 100%; }
 
     </style>
 </head>
@@ -191,28 +190,37 @@
     <!-- MAIN REACTOR -->
     <div id="reactor-container"><canvas id="reactor"></canvas></div>
 
-    <!-- MOTO HUD (CYAN REDESIGN) -->
+    <!-- MOTO HUD (AIRCRAFT STYLE) -->
     <div id="moto-hud">
         <div class="hud-top">
             <div class="compass-marker"></div>
             <div class="compass-tape" id="hud-compass">
-                <span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SW</span><span>W</span><span>NW</span><span>N</span>
+                <span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SW</span><span>W</span><span>NW</span><span>N</span><span>NE</span><span>E</span>
             </div>
         </div>
         
         <div class="hud-mid">
-            <div class="lean-bar lb-left"><div class="lb-fill" id="fill-left" style="height: 0%;"></div></div>
-            <div class="speed-box">
+            <!-- Speed -->
+            <div class="speed-overlay">
                 <div class="speed-val" id="hud-speed">0</div>
-                <div class="speed-unit">KM/H</div>
+                <div class="speed-unit">KM/H <span id="gps-status" style="font-size:10px; opacity:0.5;">(GPS)</span></div>
             </div>
-            <div class="lean-bar lb-right"><div class="lb-fill" id="fill-right" style="height: 0%;"></div></div>
+
+            <!-- Artificial Horizon -->
+            <div class="horizon-line" id="horizon-line"></div>
+
+            <!-- Bike Marker -->
+            <div class="hud-crosshair">
+                <div class="wing-left"></div>
+                <div class="wing-center"></div>
+                <div class="wing-right"></div>
+            </div>
         </div>
         
         <div class="hud-bot">
-            <div class="hud-btn" onclick="closeHUD()"><i class="fas fa-arrow-left"></i> EXIT</div>
+            <div class="hud-btn" onclick="closeHUD()"><i class="fas fa-home"></i></div>
             <div class="hud-time" id="hud-clock">00:00</div>
-            <div class="hud-btn" onclick="launchMaps()"><i class="fas fa-location-arrow"></i> MAP</div>
+            <div class="hud-btn" onclick="launchMaps()"><i class="fas fa-location-arrow"></i></div>
         </div>
     </div>
 
@@ -224,9 +232,11 @@
             <div class="vr-3 v-ring"></div>
             
             <div id="vision-feed-circle">
-                <div class="scan-line"></div>
                 <video id="local-vision-feed" autoplay playsinline></video>
                 <img id="captured-frame" style="display:none;">
+                <div id="cam-error-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; display:none;">
+                    <i class="fas fa-exclamation-triangle" style="font-size:40px; color:var(--primary); margin-bottom:10px;"></i><br>VIDEO SIGNAL LOST
+                </div>
             </div>
             
             <div class="face-brackets" id="face-brackets">
@@ -234,11 +244,11 @@
             </div>
         </div>
 
-        <div style="margin-top: 20px; font-size: 14px; letter-spacing: 2px;" id="vision-status">SCANNING ENVIRONMENT...</div>
+        <div style="margin-top: 20px; font-size: 14px; letter-spacing: 2px; z-index: 50;" id="vision-status">SYSTEM ACTIVE</div>
 
         <div class="vision-controls-bar">
             <div class="v-btn" onclick="toggleCameraSource()" title="Switch Cam"><i class="fas fa-sync-alt"></i></div>
-            <div class="v-btn" onclick="lockTarget()" title="Lock/Capture"><i class="fas fa-crosshairs"></i></div>
+            <div class="v-btn" style="border-color:#FFA500; color:#FFA500;" onclick="lockTarget()" title="Lock/Capture"><i class="fas fa-crosshairs"></i></div>
             <div class="v-btn" onclick="closeVision()" title="Close"><i class="fas fa-times"></i></div>
         </div>
     </div>
@@ -247,15 +257,15 @@
     <div id="modal-db" class="modal-window">
         <div class="modal-header">
             <span>IDENTITY DATABASE</span>
-            <i class="fas fa-times" onclick="closeModal('modal-db')"></i>
+            <i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-db')"></i>
         </div>
         <div class="modal-body">
             <div style="text-align: center;">
-                <img id="db-preview" style="width:100px; height:100px; border-radius:50%; border:2px solid var(--primary); object-fit:cover;">
+                <img id="db-preview" style="width:120px; height:120px; border-radius:50%; border:2px solid var(--primary); object-fit:cover;">
             </div>
             <input type="text" id="db-name" placeholder="FULL NAME">
             <input type="text" id="db-relation" placeholder="RELATION (e.g. Wife)">
-            <button class="hud-btn" style="width:100%; justify-content:center;" onclick="saveIdentity()">SAVE IDENTITY</button>
+            <button class="text-btn" onclick="saveIdentity()">SAVE IDENTITY</button>
             <div style="border-top:1px solid #333; margin-top:20px; padding-top:10px; font-size:12px;">KNOWN ASSOCIATES:</div>
             <div id="db-list" style="display:flex; flex-direction:column; gap:10px;"></div>
         </div>
@@ -263,23 +273,23 @@
 
     <!-- MODAL: SETTINGS -->
     <div id="modal-settings" class="modal-window">
-        <div class="modal-header"><span>CONFIG</span><i class="fas fa-times" onclick="closeModal('modal-settings')"></i></div>
+        <div class="modal-header"><span>CONFIG</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-settings')"></i></div>
         <div class="modal-body">
             <div style="font-size: 12px; color: #888;">GEMINI API KEY</div>
             <input type="password" id="api-key-input" onchange="saveApiKey(this.value)">
-            <button class="hud-btn" style="width:100%; justify-content:center; margin-top:20px;" onclick="openModal('modal-db')">MANAGE DATABASE</button>
-            <button class="hud-btn" style="width:100%; justify-content:center; margin-top:10px;" onclick="requestFullScreen()">FULLSCREEN</button>
+            <button class="text-btn" onclick="openModal('modal-db')">MANAGE DATABASE</button>
+            <button class="text-btn" onclick="requestFullScreen()">FORCE FULLSCREEN</button>
         </div>
     </div>
 
     <!-- MODAL: MEDIA -->
     <div id="modal-media" class="modal-window">
-        <div class="modal-header"><span>MEDIA</span><i class="fas fa-times" onclick="closeModal('modal-media')"></i></div>
+        <div class="modal-header"><span>MEDIA</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-media')"></i></div>
         <div class="modal-body">
             <input type="file" id="media-upload" accept="audio/*" multiple onchange="handleMediaSelect(this)" style="display:none;">
-            <button class="hud-btn" style="width:100%; justify-content:center;" onclick="document.getElementById('media-upload').click()">LOAD TRACKS</button>
+            <button class="text-btn" onclick="document.getElementById('media-upload').click()">LOAD TRACKS</button>
             <div id="now-playing" style="text-align:center; color: var(--primary); margin-top:20px;">READY</div>
-            <audio id="audio-player" controls style="width:100%; filter: invert(1) hue-rotate(180deg);"></audio>
+            <audio id="audio-player" controls style="width:100%; filter: invert(1) hue-rotate(180deg); margin-top:10px;"></audio>
         </div>
     </div>
 
@@ -298,8 +308,8 @@
         let localStream = null;
         let audioCtx, recognition;
         let watchId = null;
+        let camFacingMode = 'environment';
 
-        // Radial Menu (CMD -> HUD)
         const menuItems = [
             { id: 'media', label: 'MEDIA', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.75 }, 
             { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.25 }, 
@@ -330,23 +340,35 @@
             else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
         }
 
-        /* --- MOTO HUD LOGIC --- */
+        /* --- MOTO HUD (FIXED) --- */
         function activateHUD() {
             hudActive = true;
             document.getElementById('moto-hud').style.display = 'flex';
             requestFullScreen();
-            speak("HUD Activated. Drive safe.");
+            speak("HUD Activated.");
             
+            // Speed (GPS)
             if ('geolocation' in navigator) {
                 watchId = navigator.geolocation.watchPosition(
                     (pos) => {
-                        let speed = pos.coords.speed || 0;
+                        let speed = pos.coords.speed; // m/s
+                        if(speed === null || speed < 0) speed = 0;
                         document.getElementById('hud-speed').innerText = Math.round(speed * 3.6);
+                        document.getElementById('gps-status').innerText = "(GPS LOCK)";
+                        document.getElementById('gps-status').style.opacity = "1";
                     }, 
-                    (err) => {}, { enableHighAccuracy: true, timeout: 5000 }
+                    (err) => {
+                        console.warn(err);
+                        document.getElementById('gps-status').innerText = "(NO GPS)";
+                    }, 
+                    { enableHighAccuracy: true, maximumAge: 0 }
                 );
             }
+
+            // Orientation (Compass & Lean)
+            // Note: Android Chrome requires HTTPS.
             window.addEventListener('deviceorientation', handleOrientation);
+            
             updateClock();
             setInterval(updateClock, 1000);
         }
@@ -356,24 +378,30 @@
             document.getElementById('moto-hud').style.display = 'none';
             if (watchId) navigator.geolocation.clearWatch(watchId);
             window.removeEventListener('deviceorientation', handleOrientation);
-            resize(); draw(); // Restart reactor
+            resize(); draw();
         }
 
         function handleOrientation(e) {
             if (!hudActive) return;
-            const alpha = e.alpha || 0;
-            const gamma = e.gamma || 0; // Lean
+            const alpha = e.alpha || 0; // Compass (0-360)
+            const gamma = e.gamma || 0; // Roll (Lean Left/Right)
+            const beta = e.beta || 0;   // Pitch (Up/Down)
             
-            // Compass Tape
+            // Compass Logic (Tape Strip)
+            // 360 degrees. Tape width is roughly calculated.
+            // Simplified visual: 10% translation per 36 degrees
             const offset = (alpha / 360) * 100;
             document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`;
             
-            // Lean Bars
-            let ll = 0, lr = 0;
-            if (gamma < -3) ll = Math.min(Math.abs(gamma), 45);
-            if (gamma > 3) lr = Math.min(gamma, 45);
-            document.getElementById('fill-left').style.height = (ll * 2.2) + '%';
-            document.getElementById('fill-right').style.height = (lr * 2.2) + '%';
+            // Artificial Horizon (Aircraft Style)
+            // Rotate the horizon line opposite to the lean (gamma)
+            // Move up/down based on pitch (beta)
+            const horizon = document.getElementById('horizon-line');
+            // Limit pitch movement to keep it on screen
+            let yShift = (beta - 90) * 2; // Approximate calibration for phone mounted on bike
+            if(yShift > 100) yShift = 100; if(yShift < -100) yShift = -100;
+
+            horizon.style.transform = `rotate(${-gamma}deg) translateY(${yShift}px)`;
         }
 
         function updateClock() {
@@ -383,30 +411,63 @@
         }
         function launchMaps() { window.open("https://maps.google.com", "_blank"); }
 
-        /* --- VISION & FACE DB --- */
+        /* --- VISION & CAMERA (ROBUST FIX) --- */
         function toggleVision() {
             visionActive = !visionActive;
             const vContainer = document.getElementById('vision-container');
+            const errorMsg = document.getElementById('cam-error-msg');
+            const video = document.getElementById('local-vision-feed');
+            
             if (visionActive) {
                 vContainer.style.display = 'flex';
+                errorMsg.style.display = 'none';
+                video.style.display = 'block';
                 startCamera();
                 sfx('click');
             } else {
+                // FORCE CLOSE LOGIC
                 vContainer.style.display = 'none';
                 stopCamera();
             }
         }
-        function closeVision() { visionActive = false; toggleVision(); }
+        
+        // Directly close vision without toggling logic
+        function closeVision() {
+            visionActive = false;
+            document.getElementById('vision-container').style.display = 'none';
+            stopCamera();
+            sfx('close');
+        }
 
         async function startCamera() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                document.getElementById('local-vision-feed').srcObject = localStream;
-            } catch(e) { alert("Camera Error"); }
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: camFacingMode } 
+                });
+                const vid = document.getElementById('local-vision-feed');
+                vid.srcObject = localStream;
+            } catch(e) {
+                console.error("Cam Error:", e);
+                // Don't crash app, just show error UI
+                document.getElementById('local-vision-feed').style.display = 'none';
+                document.getElementById('cam-error-msg').style.display = 'block';
+                document.getElementById('vision-status').innerText = "CAMERA OFFLINE";
+                document.getElementById('vision-status').style.color = "red";
+                speak("Visual sensors failing. Check permissions.");
+            }
         }
+
         function stopCamera() {
-            if(localStream) localStream.getTracks().forEach(t=>t.stop());
-            localStream = null;
+            if(localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+                localStream = null;
+            }
+        }
+        
+        function toggleCameraSource() {
+            stopCamera();
+            camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment';
+            startCamera();
         }
 
         // Lock & Capture
@@ -416,31 +477,32 @@
             const status = document.getElementById('vision-status');
             
             if(brackets.style.display === 'block') {
-                // Unlock
                 brackets.style.display = 'none';
-                status.innerText = "SCANNING...";
+                status.innerText = "SYSTEM ACTIVE";
                 status.style.color = "var(--primary)";
             } else {
-                // Lock & Capture
                 brackets.style.display = 'block';
-                status.innerText = "TARGET LOCKED. ANALYZING...";
-                status.style.color = "var(--alert)";
-                captureFrame();
+                status.innerText = "TARGET LOCKED";
+                status.style.color = "#FFA500";
+                setTimeout(captureFrame, 500); // Small delay to visualize lock
             }
         }
 
         function captureFrame() {
             const video = document.getElementById('local-vision-feed');
+            if(video.style.display === 'none') { speak("No video feed."); return; }
+            
             const cvs = document.createElement('canvas');
             cvs.width = video.videoWidth; cvs.height = video.videoHeight;
             cvs.getContext('2d').drawImage(video, 0, 0);
             const dataUrl = cvs.toDataURL('image/jpeg');
             
-            // Show DB Modal to Save
             document.getElementById('db-preview').src = dataUrl;
             document.getElementById('db-name').value = "";
             document.getElementById('db-relation').value = "";
-            openModal('modal-db');
+            
+            // Force open modal
+            document.getElementById('modal-db').classList.add('active');
         }
 
         function saveIdentity() {
@@ -452,7 +514,7 @@
             facesDB.push({ name, rel, img, date: new Date().toLocaleDateString() });
             localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
             
-            speak(`Identity saved: ${name}, ${rel}`);
+            speak("Identity processed.");
             loadFaceDB();
             closeModal('modal-db');
         }
@@ -472,7 +534,7 @@
             });
         }
 
-        /* --- REACTOR GRAPHICS --- */
+        /* --- GRAPHICS --- */
         window.addEventListener('resize', resize);
         function resize() {
             width = window.innerWidth; height = window.innerHeight;
@@ -483,7 +545,6 @@
 
         function draw() {
             if(hudActive || visionActive) {
-                // Pause rendering main reactor if overlays are active to save GPU
                 animationFrame = requestAnimationFrame(draw);
                 return;
             }
@@ -492,7 +553,7 @@
             ctx.clearRect(0,0,width,height);
             ctx.translate(centerX, centerY);
             
-            // Standard Jarvis Reactor Loop
+            // Reactor
             ctx.save(); ctx.rotate(time * 0.0005); 
             for (let i = 0; i < 60; i++) {
                 ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(scale*1.0,0); ctx.lineTo(scale*1.1,0);
@@ -518,7 +579,7 @@
             ctx.beginPath(); ctx.arc(0,0, scale*0.55, 0, 2.0); ctx.stroke();
             ctx.restore();
 
-            // Center Text
+            // Text
             ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`;
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0);
@@ -590,7 +651,7 @@
         function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
 
-        /* --- AUDIO & AI --- */
+        /* --- UTILS --- */
         function sfx(type) {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
@@ -624,12 +685,10 @@
             recognition.onresult = (e) => {
                 const cmd = e.results[0][0].transcript.toLowerCase();
                 if(cmd.includes('vision') || cmd.includes('camera')) toggleVision();
-                else if(cmd.includes('hud') || cmd.includes('bike')) activateHUD();
-                else speak("Processing command: " + cmd);
+                else if(cmd.includes('hud')) activateHUD();
             };
         }
         function toggleVoiceInput() { try { recognition.start(); } catch(e) { recognition.stop(); } }
-
         function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
         function handleMediaSelect(input) {
             if(input.files.length > 0) {
