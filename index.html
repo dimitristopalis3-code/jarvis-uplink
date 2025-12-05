@@ -287,8 +287,9 @@
         let isModelLoaded = false;
         let pendingEmbedding = null;
         
-        // --- TACTICAL TRACKING STATE ---
-        let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
+        // --- TACTICAL TRACKING STATE (PHYSICS ADDED) ---
+        // Added vx (velocity x) and vy (velocity y) for inertia
+        let lockedTarget = { active: false, x: 0, y: 0, vx: 0, vy: 0, identity: null, lastSeen: 0, color: "#888888" };
         let isAnalyzing = false;
 
         // MENU CONFIG 
@@ -382,11 +383,45 @@
                             const startX = pred.topLeft[0]; const startY = pred.topLeft[1]; const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
                             const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2); const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
                             let targetX = faceX; if (camFacingMode === 'user') targetX = cvsW - faceX;
-                            if (!lockedTarget.active) { lockedTarget.x = targetX; lockedTarget.y = faceY; lockedTarget.active = true; lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" }; analyzeFace(video, pred); } 
-                            else { lockedTarget.x = lerp(lockedTarget.x, targetX, 0.2); lockedTarget.y = lerp(lockedTarget.y, faceY, 0.2); }
+                            
+                            // --- PHYSICS BASED TRACKING ---
+                            if (!lockedTarget.active) { 
+                                // Snap instantly if first lock
+                                lockedTarget.x = targetX; lockedTarget.y = faceY; 
+                                lockedTarget.vx = 0; lockedTarget.vy = 0;
+                                lockedTarget.active = true; 
+                                lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" }; 
+                                analyzeFace(video, pred); 
+                            } 
+                            else { 
+                                // Spring Physics for "Guided Missile" feel
+                                const spring = 0.05; // Strength of pull towards face
+                                const friction = 0.85; // Damping/Inertia
+
+                                // 1. Calculate Acceleration (distance * spring)
+                                let ax = (targetX - lockedTarget.x) * spring;
+                                let ay = (faceY - lockedTarget.y) * spring;
+
+                                // 2. Add to Velocity
+                                lockedTarget.vx += ax;
+                                lockedTarget.vy += ay;
+
+                                // 3. Apply Friction
+                                lockedTarget.vx *= friction;
+                                lockedTarget.vy *= friction;
+
+                                // 4. Update Position
+                                lockedTarget.x += lockedTarget.vx;
+                                lockedTarget.y += lockedTarget.vy;
+                            }
                             lockedTarget.lastSeen = time;
                         } else {
-                            if (time - lockedTarget.lastSeen > 60) { lockedTarget.active = false; document.getElementById('vision-status').innerText = "SYSTEM ONLINE"; document.getElementById('vision-status').style.color = "var(--primary)"; }
+                            if (time - lockedTarget.lastSeen > 60) { 
+                                lockedTarget.active = false; 
+                                lockedTarget.vx = 0; lockedTarget.vy = 0; // Reset velocity
+                                document.getElementById('vision-status').innerText = "SYSTEM ONLINE"; 
+                                document.getElementById('vision-status').style.color = "var(--primary)"; 
+                            }
                         }
                         if (lockedTarget.active) drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
                     } catch (err) {}
