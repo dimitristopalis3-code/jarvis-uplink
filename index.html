@@ -74,15 +74,16 @@
         .compass-tape { display: flex; gap: 60px; font-size: 22px; font-weight: bold; transition: transform 0.1s linear; color: var(--primary); will-change: transform; }
         .compass-marker { position: absolute; bottom: 0; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 12px solid var(--primary); z-index: 5; }
         .hud-mid { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        .horizon-line { position: absolute; width: 150vw; height: 2px; background: var(--primary); box-shadow: 0 0 10px var(--primary); top: 50%; left: 50%; margin-left: -75vw; transition: transform 0.1s linear; }
-        .horizon-line::after { content: ''; position: absolute; top: -100px; left: 0; width: 100%; height: 200px; background: repeating-linear-gradient(transparent, transparent 49px, rgba(0,229,255,0.2) 50px); pointer-events: none; }
-        .hud-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 60px; z-index: 10; display: flex; justify-content: center; align-items: center; }
-        .wing-left, .wing-right { width: 60px; height: 4px; background: var(--primary); border: 1px solid #000; }
-        .wing-center { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); margin: 0 5px; }
-        .speed-overlay { position: absolute; top: 15%; width: 100%; text-align: center; text-shadow: 0 0 10px #000; z-index: 20; }
-        .speed-val { font-size: 100px; font-weight: 900; font-family: 'Orbitron'; color: #fff; text-shadow: 0 0 20px var(--primary); line-height: 1; }
-        .speed-unit { font-size: 18px; letter-spacing: 5px; color: var(--primary); font-weight: bold; }
-        .hud-bot { height: 80px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9); flex-shrink: 0; }
+        
+        /* New HUD Gauge Canvas replaces CSS elements */
+        #hud-gauge-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;}
+        
+        /* Restored Crosshair Wings - Overlays the Canvas */
+        .hud-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 60px; z-index: 10; display: flex; justify-content: center; align-items: center; pointer-events: none; }
+        .wing-left, .wing-right { width: 60px; height: 4px; background: var(--primary); border: 1px solid #000; box-shadow: 0 0 10px var(--primary); transition: background 0.3s; }
+        .wing-center { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); margin: 0 5px; box-shadow: 0 0 10px var(--primary); transition: border-color 0.3s; }
+
+        .hud-bot { height: 80px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9); flex-shrink: 0; z-index: 20; }
         .hud-btn { background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); width: 60px; height: 60px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
         .hud-time { font-size: 32px; font-weight: bold; color: #fff; }
 
@@ -154,12 +155,10 @@
             </div>
         </div>
         <div class="hud-mid">
-            <div class="speed-overlay">
-                <div class="speed-val" id="hud-speed">0</div>
-                <div class="speed-unit">KM/H <span id="gps-status" style="font-size:10px; opacity:0.5;">(GPS)</span></div>
-            </div>
-            <div class="horizon-line" id="horizon-line"></div>
+            <!-- RESTORED CROSSHAIR OVERLAY -->
             <div class="hud-crosshair"><div class="wing-left"></div><div class="wing-center"></div><div class="wing-right"></div></div>
+            <!-- CANVAS REACTOR LAYER -->
+            <canvas id="hud-gauge-canvas"></canvas>
         </div>
         <div class="hud-bot">
             <div class="hud-btn" onclick="closeHUD()"><i class="fas fa-home"></i></div>
@@ -269,6 +268,9 @@
         
         let visionActive = false;
         let hudActive = false;
+        // HUD SENSOR DATA (ADDED: alt, batt)
+        let hudData = { alpha: 0, beta: 0, gamma: 0, speed: 0, alt: 0, batt: 100 };
+        
         let localStream = null;
         let audioCtx, recognition;
         let watchId = null;
@@ -317,13 +319,21 @@
         async function initSystem() {
             if ('wakeLock' in navigator) try { await navigator.wakeLock.request('screen'); } catch (e) {}
             audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // BATTERY LISTENER
+            if('getBattery' in navigator) {
+                navigator.getBattery().then(b => {
+                    hudData.batt = Math.round(b.level * 100);
+                    b.addEventListener('levelchange', () => { hudData.batt = Math.round(b.level * 100); });
+                });
+            }
+
             initMediaDB();
             try { faceModel = await blazeface.load(); recogModel = await mobilenet.load(); isModelLoaded = true; document.getElementById('model-status').innerText = "SYSTEM READY"; document.getElementById('model-status').style.color = "#00E5FF"; setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 1000); } 
             catch (e) { document.getElementById('model-status').innerText = "AI ERROR: CHECK NETWORK"; document.getElementById('model-status').style.color = "red"; setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 3000); }
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
             document.getElementById('audio-player').onended = playNextTrack;
             loadFaceDB(); resize(); draw(); 
-            // DELAY SPEECH INIT TO ENSURE INTERACTION
             setTimeout(() => { initSpeech(); speak("Welcome back, Jim. System secure."); }, 500);
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('/jarvis-uplink/sw.js', { scope: '/jarvis-uplink/' }).catch(e => console.log('SW Fail', e));
         }
@@ -338,9 +348,12 @@
             centerX = width / 2; 
             centerY = height / 2; 
             scale = Math.min(width, height) * (width < 768 ? 0.35 : 0.22); 
+            
             const arCvs = document.getElementById('vision-ar-canvas'); 
-            arCvs.width = width; 
-            arCvs.height = height; 
+            arCvs.width = width; arCvs.height = height;
+            
+            const hudCvs = document.getElementById('hud-gauge-canvas');
+            if(hudCvs) { hudCvs.width = document.querySelector('.hud-mid').offsetWidth; hudCvs.height = document.querySelector('.hud-mid').offsetHeight; }
         }
         
         function lerp(s, e, a) { return (1 - a) * s + a * e; }
@@ -356,6 +369,117 @@
             context.save(); context.rotate(t * 0.02); context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10; context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke(); context.restore();
         }
 
+        // --- NEW HUD REACTOR DRAW LOGIC (WITH TELEMETRY) ---
+        function drawHUDGauge() {
+            const hCvs = document.getElementById('hud-gauge-canvas');
+            if(!hCvs) return;
+            const hCtx = hCvs.getContext('2d');
+            const hW = hCvs.width; const hH = hCvs.height;
+            const hCX = hW / 2; const hCY = hH / 2;
+            const rad = Math.min(hW, hH) * 0.4;
+            
+            hCtx.clearRect(0,0, hW, hH);
+            
+            // DYNAMIC COLOR BASED ON SPEED
+            let speedColor = '#00E5FF';
+            let speed = hudData.speed;
+            if(speed > 50 && speed <= 100) speedColor = '#00FF00'; // Green
+            else if(speed > 100 && speed <= 150) speedColor = '#FFA500'; // Orange
+            else if(speed > 150) speedColor = '#FF0000'; // Red
+
+            // Update Crosshair color to match
+            document.querySelectorAll('.wing-left, .wing-right, .wing-center').forEach(el => {
+                el.style.backgroundColor = speedColor;
+                el.style.borderColor = speed > 150 ? '#FFF' : '#000';
+                el.style.boxShadow = `0 0 10px ${speedColor}`;
+            });
+
+            // 1. Static Reactor Ring (Outer) - PASSING CENTER COORDS
+            drawReactor(hCtx, hCX, hCY, rad, time, false, speedColor);
+            
+            // RESET TRANSFORM TO CENTER
+            hCtx.setTransform(1,0,0,1,0,0);
+            hCtx.translate(hCX, hCY);
+            
+            // 2. Compass Ring (Rotates with Alpha)
+            hCtx.save();
+            const compassRad = -hudData.alpha * (Math.PI / 180);
+            hCtx.rotate(compassRad);
+            
+            hCtx.strokeStyle = speedColor;
+            hCtx.fillStyle = speedColor;
+            hCtx.font = `bold ${rad*0.2}px Share Tech Mono`;
+            hCtx.textAlign = 'center';
+            hCtx.textBaseline = 'middle';
+            
+            const directions = ['N', 'E', 'S', 'W'];
+            for(let i=0; i<4; i++) {
+                hCtx.save();
+                hCtx.rotate(i * (Math.PI/2)); 
+                hCtx.translate(0, -rad * 0.85); 
+                hCtx.rotate(-i * (Math.PI/2)); 
+                hCtx.fillText(directions[i], 0, 0);
+                hCtx.restore();
+            }
+            hCtx.restore();
+
+            // 3. Artificial Horizon (Inner Reactor Core)
+            hCtx.save();
+            const rollRad = -hudData.gamma * (Math.PI / 180); 
+            const pitchY = hudData.beta * 3; 
+            
+            hCtx.rotate(rollRad);
+            hCtx.translate(0, pitchY);
+            
+            // Horizon Line
+            hCtx.strokeStyle = '#FFFFFF';
+            hCtx.lineWidth = 3;
+            hCtx.shadowBlur = 10;
+            hCtx.shadowColor = speedColor;
+            hCtx.beginPath(); hCtx.moveTo(-rad*0.6, 0); hCtx.lineTo(rad*0.6, 0); hCtx.stroke();
+            
+            // Pitch Ladder
+            hCtx.lineWidth = 1;
+            hCtx.globalAlpha = 0.5;
+            for(let i=1; i<=3; i++) {
+                hCtx.beginPath(); hCtx.moveTo(-rad*0.3, -i*30); hCtx.lineTo(rad*0.3, -i*30); hCtx.stroke(); 
+                hCtx.beginPath(); hCtx.moveTo(-rad*0.3, i*30); hCtx.lineTo(rad*0.3, i*30); hCtx.stroke(); 
+            }
+            hCtx.restore();
+
+            // 4. Speedometer (Static Center)
+            hCtx.shadowBlur = 0;
+            hCtx.fillStyle = '#FFFFFF';
+            hCtx.font = `900 ${rad*0.6}px Orbitron`;
+            hCtx.textAlign = 'center';
+            hCtx.textBaseline = 'middle';
+            hCtx.fillText(hudData.speed, 0, 10);
+            
+            hCtx.font = `bold ${rad*0.15}px Share Tech Mono`;
+            hCtx.fillStyle = speedColor;
+            hCtx.fillText("KM/H", 0, rad*0.45);
+
+            // 5. TELEMETRY (Lean Angle, Alt, Batt)
+            hCtx.font = `bold ${rad*0.15}px Share Tech Mono`;
+            hCtx.fillStyle = '#FFFFFF';
+            
+            // Lean Angle (Left/Right)
+            let lean = Math.round(hudData.gamma);
+            let leanText = (lean > 0) ? `R ${lean}°` : `L ${Math.abs(lean)}°`;
+            if(Math.abs(lean) < 2) leanText = "--°"; // Straight
+            
+            hCtx.textAlign = 'right';
+            hCtx.fillText(leanText, -rad*1.2, 0);
+
+            // Altitude (Top Right)
+            hCtx.textAlign = 'left';
+            hCtx.fillText(`ALT ${Math.round(hudData.alt)}m`, rad*1.2, -rad*0.2);
+
+            // Battery (Bottom Right)
+            hCtx.fillStyle = hudData.batt < 20 ? '#FF0000' : '#00E5FF';
+            hCtx.fillText(`PWR ${hudData.batt}%`, rad*1.2, rad*0.2);
+        }
+
         function drawTacticalHUD(ctx, x, y, r, t, color, name, relation) {
             ctx.save(); ctx.translate(x, y);
             ctx.save(); ctx.rotate(t * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2; for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, 1.5); ctx.stroke(); ctx.rotate((Math.PI * 2) / 3); } ctx.restore();
@@ -366,7 +490,11 @@
         }
 
         async function draw() {
-            if(hudActive) { animationFrame = requestAnimationFrame(draw); return; }
+            if(hudActive) { 
+                drawHUDGauge();
+                animationFrame = requestAnimationFrame(draw); 
+                return; 
+            }
             if(!visionActive) { drawReactor(ctx, centerX, centerY, scale, time, true); ctx.fillStyle = "#FFFFFF"; ctx.font = `bold ${scale * 0.15}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowBlur = 0; ctx.fillText("JARVIS", 0, 0); drawMenu(); }
             if(visionActive) {
                 const arCvs = document.getElementById('vision-ar-canvas'); const arCtx = arCvs.getContext('2d');
@@ -383,12 +511,8 @@
                             const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2); const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
                             let targetX = faceX; if (camFacingMode === 'user') targetX = cvsW - faceX;
                             
-                            // --- LERP SMOOTHING (Requested Update) ---
-                            // 0.12 factor provides "Guided Missile" feel without the wobble
                             const smoothFactor = 0.12; 
-
                             if (!lockedTarget.active) { 
-                                // Snap instantly if first lock
                                 lockedTarget.x = targetX; 
                                 lockedTarget.y = faceY; 
                                 lockedTarget.active = true; 
@@ -396,14 +520,12 @@
                                 analyzeFace(video, pred); 
                             } 
                             else { 
-                                // Apply Linear Interpolation
                                 lockedTarget.x += (targetX - lockedTarget.x) * smoothFactor;
                                 lockedTarget.y += (faceY - lockedTarget.y) * smoothFactor;
                             }
                             lockedTarget.lastSeen = time;
                         } else {
                             if (time - lockedTarget.lastSeen > 60) { 
-                                // DRIFT TO CENTER IF LOST (Persistent feel)
                                 lockedTarget.x += (centerX - lockedTarget.x) * 0.02;
                                 lockedTarget.y += (centerY - lockedTarget.y) * 0.02;
 
@@ -505,9 +627,38 @@
         function renderPlaylist() { const container = document.getElementById('playlist-container'); container.innerHTML = ''; if(playlist.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>'; return; } playlist.forEach((track, index) => { const item = document.createElement('div'); item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : ''); item.onclick = () => playTrack(index); item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`; container.appendChild(item); }); }
         function playTrack(index) { if (index < 0 || index >= playlist.length) return; currentTrackIndex = index; const track = playlist[index]; const player = document.getElementById('audio-player'); player.src = URL.createObjectURL(track); player.play(); document.getElementById('now-playing').innerText = track.name.toUpperCase(); renderPlaylist(); const activeEl = document.querySelector('.active-track'); if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
         function playNextTrack() { if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1); else playTrack(0); }
-        function activateHUD() { hudActive = true; document.getElementById('moto-hud').style.display = 'flex'; requestFullScreen(); if ('geolocation' in navigator) { watchId = navigator.geolocation.watchPosition((pos) => { let speed = pos.coords.speed; if(speed === null || speed < 0) speed = 0; document.getElementById('hud-speed').innerText = Math.round(speed * 3.6); document.getElementById('gps-status').innerText = "(GPS LOCK)"; document.getElementById('gps-status').style.opacity = "1"; }, (err) => { document.getElementById('gps-status').innerText = "(NO GPS)"; }, { enableHighAccuracy: true, maximumAge: 0 }); } window.addEventListener('deviceorientation', handleOrientation); updateClock(); setInterval(updateClock, 1000); }
+        function activateHUD() { 
+            hudActive = true; 
+            document.getElementById('moto-hud').style.display = 'flex'; 
+            // Trigger a resize to ensure HUD Canvas is correctly sized
+            resize(); 
+            requestFullScreen(); 
+            if ('geolocation' in navigator) { 
+                watchId = navigator.geolocation.watchPosition((pos) => { 
+                    let s = pos.coords.speed; 
+                    if(s === null || s < 0) s = 0; 
+                    hudData.speed = Math.round(s * 3.6);
+                    if(pos.coords.altitude) hudData.alt = pos.coords.altitude; // CAPTURE ALTITUDE
+                }, (err) => { }, { enableHighAccuracy: true, maximumAge: 0 }); 
+            } 
+            window.addEventListener('deviceorientation', handleOrientation); 
+            updateClock(); 
+            setInterval(updateClock, 1000); 
+        }
         function closeHUD() { hudActive = false; document.getElementById('moto-hud').style.display = 'none'; if (watchId) navigator.geolocation.clearWatch(watchId); window.removeEventListener('deviceorientation', handleOrientation); resize(); draw(); }
-        function handleOrientation(e) { if (!hudActive) return; const alpha = e.alpha || 0; const gamma = e.gamma || 0; const beta = e.beta || 0; const offset = (alpha / 360) * 100; document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`; let yShift = (beta - 90) * 2; if(yShift > 100) yShift = 100; if(yShift < -100) yShift = -100; document.getElementById('horizon-line').style.transform = `rotate(${-gamma}deg) translateY(${yShift}px)`; }
+        
+        function handleOrientation(e) { 
+            if (!hudActive) return; 
+            // Store orientation in global object for Canvas loop
+            hudData.alpha = e.alpha || 0; 
+            hudData.beta = e.beta || 0; 
+            hudData.gamma = e.gamma || 0; 
+            
+            // Update Compass Tape (Top) - Keeping it as redundancy
+            const offset = (hudData.alpha / 360) * 100; 
+            document.getElementById('hud-compass').style.transform = `translateX(${-offset}%)`; 
+        }
+        
         function updateClock() { const d = new Date(); document.getElementById('hud-clock').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
         function launchMaps() { window.open("https://maps.google.com", "_blank"); }
         function toggleVision() { visionActive = !visionActive; const vContainer = document.getElementById('vision-container'); const errorMsg = document.getElementById('cam-error-msg'); const video = document.getElementById('local-vision-feed'); if (visionActive) { vContainer.style.display = 'flex'; errorMsg.style.display = 'none'; video.style.display = 'block'; resize(); startCamera(); sfx('click'); } else { vContainer.style.display = 'none'; stopCamera(); } }
