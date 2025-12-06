@@ -243,11 +243,6 @@
         let pendingEmbedding = null;
         
         // DECOUPLED TRACKING VARS
-        // active: should we draw the ring?
-        // x,y: current interpolated draw position
-        // targetX, targetY: destination from AI
-        // lastSeen: timestamp of last valid detection
-        // color, info: visual properties
         let lockedTarget = { 
             active: false, 
             x: 0, y: 0, 
@@ -258,7 +253,7 @@
             info: { top: "", bottom: "" }
         };
         let isAnalyzing = false;
-        let isDetecting = false; // Semaphore for async loop
+        let isDetecting = false; 
 
         const menuItems = [
             { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: -Math.PI * 0.8 }, 
@@ -461,6 +456,7 @@
             canvas.height = height; 
             centerX = width / 2; 
             centerY = height / 2; 
+            // Scaled slightly smaller to ensure fit in portrait
             scale = Math.min(width, height) * (width < 768 ? 0.30 : 0.22); 
             const arCvs = document.getElementById('vision-ar-canvas'); 
             if(arCvs) { arCvs.width = width; arCvs.height = height; }
@@ -572,24 +568,19 @@
                         
                         // DRAW TARGET IF ACTIVE
                         if(lockedTarget.active) {
-                            // Persistence: check time
                             const lostTime = time - lockedTarget.lastSeen;
-                            // 300 frames = 5 seconds
                             if(lostTime < 300) {
-                                // Smooth movement
                                 lockedTarget.x = lerp(lockedTarget.x, lockedTarget.targetX, 0.15);
                                 lockedTarget.y = lerp(lockedTarget.y, lockedTarget.targetY, 0.15);
                                 
-                                // Calc fade
                                 let alpha = 1.0;
-                                if(lostTime > 180) alpha = 1.0 - ((lostTime - 180) / 120); // Fade last 2s
+                                if(lostTime > 180) alpha = 1.0 - ((lostTime - 180) / 120); 
                                 
                                 arCtx.globalAlpha = alpha;
                                 
-                                const tr = 150; // Ring size
+                                const tr = 150; 
                                 arCtx.translate(lockedTarget.x, lockedTarget.y);
                                 
-                                // DRAW NEW REACTOR STYLE LOCK RING
                                 drawLockRing(arCtx, tr, lockedTarget.color);
                                 
                                 arCtx.fillStyle = lockedTarget.color;
@@ -609,7 +600,6 @@
             } catch(e) { console.error("Draw Loop Error:", e); }
         }
 
-        // ASYNC DETECTION LOOP
         async function runDetectionLoop() {
             if(!visionActive) return;
             if(isDetecting) {
@@ -626,8 +616,6 @@
                      const start = pred.topLeft; const end = pred.bottomRight;
                      const size = [end[0] - start[0], end[1] - start[1]];
                      
-                     // Calculate Canvas Coords
-                     // Note: We need accurate canvas scaling
                      const arCvs = document.getElementById('vision-ar-canvas');
                      const scaleX = arCvs.width / video.videoWidth;
                      const scaleY = arCvs.height / video.videoHeight;
@@ -642,7 +630,6 @@
                      lockedTarget.lastSeen = time;
                      lockedTarget.active = true;
                      
-                     // Identify occasionally
                      if(!isAnalyzing && (time % 30 === 0)) {
                          isAnalyzing = true;
                          identifyFace(video, pred);
@@ -661,7 +648,6 @@
             else if(speed > 100 && speed <= 150) speedColor = '#FFA500';
             else if(speed > 150) speedColor = '#FF0000';
 
-            // Compass
             ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy); ctx.save();
             ctx.rotate(-hudData.alpha * (Math.PI / 180));
             ctx.fillStyle = speedColor; ctx.font = `bold ${s*0.25}px Share Tech Mono`;
@@ -671,13 +657,11 @@
             });
             ctx.restore();
 
-            // Horizon
             ctx.save(); ctx.rotate(-hudData.gamma * (Math.PI / 180));
             const pitchY = hudData.beta * 3;
             ctx.translate(0, pitchY);
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = speedColor;
             ctx.beginPath(); ctx.moveTo(-s*0.6, 0); ctx.lineTo(s*0.6, 0); ctx.stroke();
-            // Pitch Ladder
             ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
             for(let i=1; i<=2; i++) { 
                 ctx.beginPath(); ctx.moveTo(-s*0.2, -i*40); ctx.lineTo(s*0.2, -i*40); ctx.stroke();
@@ -685,14 +669,12 @@
             }
             ctx.restore();
 
-            // Speed
             ctx.shadowBlur = 0; ctx.fillStyle = '#FFFFFF'; ctx.globalAlpha = 1.0;
             ctx.font = `900 ${s*0.6}px Orbitron`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(hudData.speed, 0, 10);
             ctx.font = `bold ${s*0.15}px Share Tech Mono`; ctx.fillStyle = speedColor;
             ctx.fillText("KM/H", 0, s*0.45);
 
-            // Left Pitch
             ctx.setTransform(1,0,0,1,0,0); ctx.translate(20, cy); ctx.save();
             ctx.rotate(-hudData.gamma * (Math.PI / 180)); ctx.translate(0, hudData.beta * 4);
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6;
@@ -702,7 +684,6 @@
             }
             ctx.restore();
 
-            // Top Right Battery - Adjusted Position
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.globalAlpha = 0.8;
             ctx.font = `12px Share Tech Mono`;
@@ -754,58 +735,11 @@
             }
         }
 
-        // --- NEW TARGET LOCK UI ---
         function drawLockRing(ctx, r, color) {
-            // Layer 1: Outer Ticks (Faster rotation)
-            ctx.save();
-            ctx.rotate(time * 0.05);
-            for (let i = 0; i < 60; i++) {
-                ctx.rotate(Math.PI * 2 / 60);
-                ctx.beginPath();
-                ctx.moveTo(r, 0);
-                ctx.lineTo(r * 1.1, 0);
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            }
-            ctx.restore();
-
-            // Layer 2: Mid Arcs (Counter-rotate, transparent)
-            ctx.save();
-            ctx.rotate(-time * 0.02);
-            ctx.lineWidth = r * 0.12;
-            ctx.strokeStyle = color;
-            ctx.globalAlpha = 0.5;
-            for(let j=0; j<3; j++) {
-                ctx.beginPath();
-                ctx.arc(0, 0, r * 0.85, 0, 1.2);
-                ctx.stroke();
-                ctx.rotate(Math.PI*2/3);
-            }
-            ctx.restore();
-
-            // Layer 3: Inner Solid Ring
-            ctx.save();
-            ctx.rotate(time * 0.02);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(0, 0, r * 0.75, 0, Math.PI*2);
-            ctx.stroke();
-            ctx.restore();
-
-            // Layer 4: Core Segments (Face Box)
-            ctx.save();
-            ctx.rotate(-time * 0.05);
-            ctx.lineWidth = r * 0.05;
-            ctx.strokeStyle = color;
-            for(let l=0; l<2; l++) {
-                ctx.beginPath();
-                ctx.arc(0,0, r * 0.65, 0, 2.0);
-                ctx.stroke();
-                ctx.rotate(Math.PI);
-            }
-            ctx.restore();
+            ctx.save(); ctx.rotate(time * 0.05); for (let i = 0; i < 60; i++) { ctx.rotate(Math.PI * 2 / 60); ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r * 1.1, 0); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke(); } ctx.restore();
+            ctx.save(); ctx.rotate(-time * 0.02); ctx.lineWidth = r * 0.12; ctx.strokeStyle = color; ctx.globalAlpha = 0.5; for(let j=0; j<3; j++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, 1.2); ctx.stroke(); ctx.rotate(Math.PI*2/3); } ctx.restore();
+            ctx.save(); ctx.rotate(time * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r * 0.75, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+            ctx.save(); ctx.rotate(-time * 0.05); ctx.lineWidth = r * 0.05; ctx.strokeStyle = color; for(let l=0; l<2; l++) { ctx.beginPath(); ctx.arc(0,0, r * 0.65, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI); } ctx.restore();
         }
         
         async function identifyFace(video, pred) {
@@ -814,7 +748,6 @@
                 currentUser = { name: "Unknown", permission: "None" };
                 isAnalyzing = false; return;
             }
-
             const start = pred.topLeft; const end = pred.bottomRight;
             const tensor = tf.tidy(() => {
                 const vidT = tf.browser.fromPixels(video);
@@ -822,7 +755,6 @@
                 const resized = tf.image.resizeBilinear(faceT, [224, 224]);
                 return recogModel.infer(resized, true);
             });
-            
             let bestMatch = { diff: 100, entry: null };
             for(let entry of facesDB) {
                 if(!entry.embedding) continue;
@@ -832,22 +764,14 @@
                 if(dist < bestMatch.diff) bestMatch = { diff: dist, entry: entry };
             }
             tensor.dispose();
-
-            // INCREASED THRESHOLD FOR MOBILE CAMERAS
             if(bestMatch.diff < 25.0) { 
-                const p = bestMatch.entry;
-                currentUser = p;
-                lockedTarget.info = { top: p.name.toUpperCase(), bottom: `${p.sex} | ${p.age}` };
-                
+                const p = bestMatch.entry; currentUser = p; lockedTarget.info = { top: p.name.toUpperCase(), bottom: `${p.sex} | ${p.age}` };
                 if(p.permission === 'Full') { lockedTarget.color = "#00FF00"; lockedTarget.info.bottom += " | ADMIN"; }
                 else if(p.permission === 'Medium') { lockedTarget.color = "#FFFF00"; lockedTarget.info.bottom += " | LIMITED"; }
                 else if(p.permission === 'Missing') { lockedTarget.color = "#00E5FF"; lockedTarget.info.bottom = "AMBER ALERT"; }
                 else { lockedTarget.color = "#888"; lockedTarget.info.bottom += " | NO ACCESS"; }
-                
             } else {
-                currentUser = { name: "Unknown", permission: "None" };
-                lockedTarget.color = "#888";
-                lockedTarget.info = { top: "UNKNOWN", bottom: "ACCESS DENIED" };
+                currentUser = { name: "Unknown", permission: "None" }; lockedTarget.color = "#888"; lockedTarget.info = { top: "UNKNOWN", bottom: "ACCESS DENIED" };
             }
             isAnalyzing = false;
         }
@@ -855,36 +779,26 @@
         function handleInput(e) { 
             if(!isSystemActive) return;
             if(visionActive || document.querySelector('.modal-window.active')) return; 
-            
             const cx = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
             const cy = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-            
             const rect = canvas.getBoundingClientRect();
             const dx = cx - (rect.left + centerX); 
             const dy = cy - (rect.top + centerY); 
             const dist = Math.sqrt(dx*dx + dy*dy); 
             const angle = Math.atan2(dy, dx); 
-
             const btnY = scale * 1.1; 
             if (showMenuTrigger && Math.abs(dx) < 60 && Math.abs(dy - (btnY + 20)) < 50) {
-                e.preventDefault(); sfx('click');
-                menuOpen = !menuOpen;
-                return;
+                e.preventDefault(); sfx('click'); menuOpen = !menuOpen; return;
             }
-
             if (dist < scale * 0.6) {
-                e.preventDefault(); sfx('click');
-                showMenuTrigger = true; 
-                speakRandomConfirm();   
+                e.preventDefault(); sfx('click'); showMenuTrigger = true; speakRandomConfirm();   
                 try { recognition.start(); } catch(e) {}
                 setTimeout(() => { showMenuTrigger = false; }, 15000); 
                 return;
             }
-
             if (menuOpen && dist > scale * 1.35 && dist < scale * 1.6) { 
                 menuItems.forEach(item => { 
-                    let diff = angle - item.angle; 
-                    while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2; 
+                    let diff = angle - item.angle; while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2; 
                     if (Math.abs(diff) < 0.25) { 
                         e.preventDefault(); sfx('click'); 
                         if(item.target === 'vision-toggle') toggleVision(); 
@@ -894,201 +808,40 @@
                     } 
                 }); 
             }
-            
             if (menuOpen && mediaSubMenuOpen && dist > scale * 1.05 && dist < scale * 1.3) {
                 subMenuItems.forEach(item => {
-                    let diff = angle - item.angle; 
-                    while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2; 
-                    if (Math.abs(diff) < 0.15) { 
-                        e.preventDefault(); sfx('click'); openModal(item.target); 
-                    }
+                    let diff = angle - item.angle; while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2; 
+                    if (Math.abs(diff) < 0.15) { e.preventDefault(); sfx('click'); openModal(item.target); }
                 });
             }
         }
-
         window.addEventListener('touchstart', handleInput, {passive: false}); 
         window.addEventListener('mousedown', handleInput);
 
-        /* --- DB MANAGEMENT --- */
         function manualSaveIdentity() {
             const name = document.getElementById('db-name').value;
             const sex = document.getElementById('db-sex').value;
             const age = document.getElementById('db-age').value;
             const acc = document.getElementById('db-access').value;
-            
             if(name && sex && age && acc) {
                 facesDB.push({ name: name, sex: sex, age: age, permission: acc, embedding: null });
-                localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
-                loadFaceDB();
-                closeModal('modal-db');
-                speak("Identity record saved.");
-            } else {
-                speak("Incomplete data.");
-            }
+                localStorage.setItem('jarvis_faces', JSON.stringify(facesDB)); loadFaceDB(); closeModal('modal-db'); speak("Identity record saved.");
+            } else { speak("Incomplete data."); }
         }
-
-        function deleteUser(index) {
-            facesDB.splice(index, 1);
-            localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
-            loadFaceDB();
-        }
-
+        function deleteUser(index) { facesDB.splice(index, 1); localStorage.setItem('jarvis_faces', JSON.stringify(facesDB)); loadFaceDB(); }
         function loadFaceDB() {
-            const list = document.getElementById('db-list');
-            list.innerHTML = "";
+            const list = document.getElementById('db-list'); list.innerHTML = "";
             facesDB.forEach((p, i) => {
-                list.innerHTML += `
-                <div class="db-entry">
-                    <div class="db-info">
-                        <div style="font-weight:bold;">${p.name}</div>
-                        <div style="font-size:10px; color:var(--primary);">${p.sex} | ${p.age} | ${p.permission}</div>
-                    </div>
-                    <div class="db-actions">
-                        <div class="delete-btn" onclick="deleteUser(${i})"><i class="fas fa-trash"></i></div>
-                    </div>
-                </div>`;
+                list.innerHTML += `<div class="db-entry"><div class="db-info"><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; color:var(--primary);">${p.sex} | ${p.age} | ${p.permission}</div></div><div class="db-actions"><div class="delete-btn" onclick="deleteUser(${i})"><i class="fas fa-trash"></i></div></div></div>`;
             });
         }
-
-        // --- SPEECH COMMANDS ---
-        function initSpeech() { 
-            const SR = window.SpeechRecognition || window.webkitSpeechRecognition; 
-            if(!SR) return; 
-            recognition = new SR(); 
-            recognition.continuous = false; 
-            recognition.interimResults = false;
-            recognition.lang = 'en-US'; 
-            
-            recognition.onresult = (e) => { 
-                const t = e.results[0][0].transcript.toLowerCase().trim();
-                console.log("Command:", t);
-                processVoiceCommand(t);
-            };
-
-            recognition.onend = () => {
-                if(conversationState !== "IDLE") {
-                    try { recognition.start(); } catch(e){}
-                }
-            };
-        }
-
-        function processVoiceCommand(t) {
-            if(conversationState === "IDLE") {
-                if(t.includes("scan person") || t.includes("scan target")) {
-                    speak("Scanning target.");
-                    captureAndEnroll();
-                    return;
-                }
-                
-                if(currentUser.permission === 'None' || currentUser.permission === 'Medium') {
-                     if(t.includes("open") || t.includes("close") || t.includes("play")) {
-                         speak("Access denied.");
-                         return;
-                     }
-                }
-
-                if(t.includes('vision') || t.includes('camera')) { speakRandomConfirm(); if(!visionActive) toggleVision(); }
-                else if(t.includes('close vision')) { speakRandomConfirm(); if(visionActive) closeVision(); }
-                else if(t.includes('media') || t.includes('music')) { speakRandomConfirm(); openModal('modal-media'); }
-                else if(t.includes('close')) { speakRandomConfirm(); closeAllModals(); }
-                else if(t.includes('comms')) { speakRandomConfirm(); openModal('modal-comms'); }
-                else if(t.includes('whatsapp')) { launchApp('whatsapp://send?text='); }
-                else if(t.includes('facebook')) { launchApp('https://m.facebook.com/'); }
-                else if(t.includes('messenger')) { launchApp('https://m.me/'); }
-                else if(t.includes('instagram')) { launchApp('https://www.instagram.com/'); }
-                else if(t.includes('play')) { 
-                    const player = document.getElementById('audio-player');
-                    if (playlist.length > 0) {
-                        if(!player.src || player.src === "") playTrack(0); else player.play();
-                    } else { speak("Playlist empty."); }
-                }
-                else if(t.includes('pause') || t.includes('stop')) { document.getElementById('audio-player').pause(); }
-                else if(t.includes('next') || t.includes('skip')) { playNextTrack(); }
-                else if(t.includes('database')) { speakRandomConfirm(); openModal('modal-db'); }
-                else if(t.includes('full screen')) { requestFullScreen(); }
-            }
-            
-            else if(conversationState === "SCAN_CONFIRM") {
-                if(t.includes("yes")) {
-                    conversationState = "ASK_NAME";
-                    speak("Who is this person, Sir?");
-                } else {
-                    conversationState = "IDLE";
-                    speak("Scan discarded.");
-                }
-            }
-            
-            else if(conversationState === "ASK_NAME") {
-                if(t.length > 0) {
-                    tempNewUser.name = t.toUpperCase();
-                    conversationState = "ASK_SEX";
-                    speak("Is it a male or female?");
-                }
-            }
-            
-            else if(conversationState === "ASK_SEX") {
-                if(t.includes("female")) tempNewUser.sex = "Female";
-                else tempNewUser.sex = "Male";
-                conversationState = "ASK_AGE";
-                speak("How old is that person?");
-            }
-            
-            else if(conversationState === "ASK_AGE") {
-                let age = t.replace(/\D/g,'');
-                if(age) {
-                    tempNewUser.age = age;
-                    conversationState = "ASK_ACCESS";
-                    speak("What level of access? Full, Medium, or None?");
-                }
-            }
-            
-            else if(conversationState === "ASK_ACCESS") {
-                if(t.includes("full")) tempNewUser.permission = "Full";
-                else if(t.includes("medium")) tempNewUser.permission = "Medium";
-                else if(t.includes("missing")) tempNewUser.permission = "Missing";
-                else tempNewUser.permission = "None";
-                
-                facesDB.push(tempNewUser);
-                localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
-                loadFaceDB();
-                conversationState = "IDLE";
-                speak("Identity registered. Permissions updated.");
-            }
-        }
-
-        async function captureAndEnroll() {
-            if(!visionActive) {
-                toggleVision();
-                await new Promise(r => setTimeout(r, 2000)); 
-            }
-            
-            const video = document.getElementById('local-vision-feed');
-            const preds = await faceModel.estimateFaces(video, false);
-            
-            if(preds.length > 0) {
-                const pred = preds[0];
-                const start = pred.topLeft; const end = pred.bottomRight;
-                
-                const tensor = tf.tidy(() => {
-                    const vidT = tf.browser.fromPixels(video);
-                    const faceT = vidT.slice([parseInt(start[1]), parseInt(start[0]), 0], [parseInt(end[1] - start[1]), parseInt(end[0] - start[0]), 3]);
-                    const resized = tf.image.resizeBilinear(faceT, [224, 224]);
-                    return recogModel.infer(resized, true);
-                });
-                
-                tempNewUser = { embedding: tensor.arraySync() };
-                tensor.dispose();
-                
-                conversationState = "SCAN_CONFIRM";
-                speak("Scan complete. Shall I add this person to the database?");
-            } else {
-                speak("No face detected.");
-                conversationState = "IDLE";
-            }
-        }
-
         function toggleVoiceInput() { try { recognition.start(); } catch(e) {} }
         function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
+        async function startCamera() { try { localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacingMode } }); const video = document.getElementById('local-vision-feed'); video.srcObject = localStream; if(camFacingMode === 'user') video.classList.add('mirrored'); else video.classList.remove('mirrored'); } catch(e) { document.getElementById('local-vision-feed').style.display = 'none'; document.getElementById('cam-error-msg').style.display = 'block'; speak("Visual sensors failing."); } }
+        function stopCamera() { if(localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } }
+        function toggleCameraSource() { stopCamera(); camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment'; startCamera(); }
+        async function takePhoto() { sfx('click'); const video = document.getElementById('local-vision-feed'); const cvs = document.createElement('canvas'); cvs.width = video.videoWidth; cvs.height = video.videoHeight; const ctx = cvs.getContext('2d'); if(camFacingMode === 'user') { ctx.translate(cvs.width, 0); ctx.scale(-1, 1); } ctx.drawImage(video, 0, 0); const imgData = cvs.toDataURL('image/jpeg'); document.getElementById('db-preview').src = imgData; document.getElementById('db-name').value = ""; document.getElementById('db-relation').value = ""; document.getElementById('modal-db').classList.add('active'); if(isModelLoaded) { document.getElementById('signature-status').innerText = "ANALYZING FACE GEOMETRY..."; document.getElementById('signature-status').style.color = "#FFA500"; const predictions = await faceModel.estimateFaces(cvs, false); if(predictions.length > 0) { const startX = predictions[0].topLeft[0]; const startY = predictions[0].topLeft[1]; const width = predictions[0].bottomRight[0] - startX; const height = predictions[0].bottomRight[1] - startY; tf.tidy(() => { const tensor = tf.browser.fromPixels(cvs); const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]); const resized = tf.image.resizeBilinear(faceT, [224, 224]); const resultTensor = recogModel.infer(resized, true); pendingEmbedding = resultTensor.arraySync(); }); document.getElementById('signature-status').innerText = "BIOMETRIC SIGNATURE ACQUIRED"; document.getElementById('signature-status').style.color = "#00FF00"; document.getElementById('btn-save-id').disabled = false; } else { document.getElementById('signature-status').innerText = "NO FACE DETECTED. RETRY."; document.getElementById('signature-status').style.color = "red"; document.getElementById('btn-save-id').disabled = true; } } }
+        async function toggleRecord() { if(isRecording) { mediaRecorder.stop(); isRecording = false; document.getElementById('btn-record').classList.remove('recording'); speak("Recording saved."); } else { if(!localStream) return; recordedChunks = []; mediaRecorder = new MediaRecorder(localStream); mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(recordedChunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = 'jarvis_recon_' + Date.now() + '.webm'; document.body.appendChild(a); a.click(); setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100); }; mediaRecorder.start(); isRecording = true; document.getElementById('btn-record').classList.add('recording'); speak("Recording started."); } }
     </script>
 </body>
 </html>
