@@ -80,12 +80,12 @@
 
         /* DB & MEDIA */
         .db-entry { border: 1px solid rgba(0,229,255,0.2); padding: 10px; border-radius: 5px; display: flex; gap: 10px; align-items: center; justify-content: space-between; background: rgba(0,20,40,0.5); }
-        .db-info { flex: 1; display: flex; gap: 10px; align-items: center; }
+        .db-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
         .db-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 1px solid var(--primary); }
         .db-actions { display: flex; gap: 10px; }
         .delete-btn { color: #FF0000; border: 1px solid #FF0000; padding: 5px 10px; border-radius: 3px; font-size: 12px; cursor: pointer; }
         
-        input { background: #111; border: 1px solid #333; color: var(--primary); padding: 15px; width: 100%; font-family: 'Share Tech Mono'; margin-bottom: 10px; }
+        input, select { background: #111; border: 1px solid #333; color: var(--primary); padding: 15px; width: 100%; font-family: 'Share Tech Mono'; margin-bottom: 10px; }
         .text-btn { padding: 15px; background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-weight: bold; width: 100%; }
         .text-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -146,11 +146,23 @@
         <div class="modal-header"><span>IDENTITY DATABASE</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-db')"></i></div>
         <div class="modal-body">
             <div style="text-align: center;"><img id="db-preview" style="width:120px; height:120px; border-radius:50%; border:2px solid var(--primary); object-fit:cover;"></div>
+            <div style="font-size: 12px; color: #888; text-align:center; margin: 5px 0;">MANUAL ENTRY</div>
             <input type="text" id="db-name" placeholder="FULL NAME">
-            <input type="text" id="db-relation" placeholder="RELATION (e.g. Wife)">
-            <div id="signature-status" style="font-size:10px; color:#FFA500; margin-bottom:10px; text-align:center;">TAKE PHOTO TO EXTRACT SIGNATURE</div>
-            <button class="text-btn" id="btn-save-id" onclick="saveIdentity()" disabled>SAVE IDENTITY</button>
-            <div style="border-top:1px solid #333; margin-top:20px; padding-top:10px; font-size:12px;">KNOWN ASSOCIATES:</div>
+            <select id="db-sex">
+                <option value="" disabled selected>SELECT SEX</option>
+                <option value="Male">MALE</option>
+                <option value="Female">FEMALE</option>
+            </select>
+            <input type="number" id="db-age" placeholder="AGE">
+            <select id="db-access">
+                <option value="" disabled selected>ACCESS LEVEL</option>
+                <option value="Full">FULL (ADMIN)</option>
+                <option value="Medium">MEDIUM (GUEST)</option>
+                <option value="None">NONE (UNKNOWN)</option>
+                <option value="Missing">MISSING (AMBER ALERT)</option>
+            </select>
+            <button class="text-btn" id="btn-save-id" onclick="manualSaveIdentity()">SAVE RECORD</button>
+            <div style="border-top:1px solid #333; margin-top:20px; padding-top:10px; font-size:12px;">REGISTERED IDENTITIES:</div>
             <div id="db-list" style="display:flex; flex-direction:column; gap:10px;"></div>
             <button class="text-btn" style="margin-top:20px; background:rgba(255,0,0,0.2); border-color:red; color:red;" onclick="clearDB()">WIPE DATABASE</button>
         </div>
@@ -198,7 +210,7 @@
     </div>
 
     <script>
-        /* --- SYSTEM CORE --- */
+        /* --- GLOBAL CONSTANTS --- */
         const canvas = document.getElementById('reactor');
         const ctx = canvas.getContext('2d');
         
@@ -213,12 +225,9 @@
         let showMenuTrigger = false; 
         let menuOpen = false;        
         let isSystemActive = false;
-        
-        // CONVERSATION STATE MACHINE
         let conversationState = "IDLE"; 
         let tempNewUser = {}; 
         let currentUser = { name: "Unknown", permission: "None" }; 
-        
         let hudData = { alpha: 0, beta: 0, gamma: 0, speed: 0, alt: 0, batt: 100 };
         
         let audioCtx, analyser, dataArray, source, recognition;
@@ -228,12 +237,10 @@
         let playlist = []; 
         let currentTrackIndex = -1;
         let mediaRecorder, recordedChunks = [], isRecording = false;
-
         let faceModel = null;
         let recogModel = null;
         let isModelLoaded = false;
         let pendingEmbedding = null;
-        
         let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
         let isAnalyzing = false;
 
@@ -242,14 +249,16 @@
             { id: 'media', label: 'MEDIA', icon: 'fa-folder', target: 'sub-toggle', angle: -Math.PI * 0.5 },   
             { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.2 } 
         ];
-
         let mediaSubMenuOpen = false;
         const subMenuItems = [
             { id: 'sub-player', label: 'PLAYER', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.65 },
             { id: 'sub-comms', label: 'COMMS', icon: 'fa-comments', target: 'modal-comms', angle: -Math.PI * 0.35 }
         ];
+        
+        const DB_NAME = 'JarvisMediaDB'; const DB_VERSION = 1; const STORE_NAME = 'tracks';
+        let db;
 
-        /* --- CORE UTILS MOVED UP FOR SAFETY --- */
+        /* --- HELPER FUNCTIONS (HOISTED) --- */
         function sfx(type) { 
             if(!audioCtx) return;
             try {
@@ -282,10 +291,76 @@
             speak(phrases[Math.floor(Math.random() * phrases.length)]);
         }
 
-        /* --- INIT --- */
+        function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
+        function closeAllModals() { document.querySelectorAll('.modal-window').forEach(m => m.classList.remove('active')); }
+        
+        function toggleVision() { 
+            visionActive = !visionActive; 
+            const v = document.getElementById('vision-container'); 
+            v.style.display = visionActive?'flex':'none'; 
+            if(visionActive) startCamera(); else stopCamera(); 
+        }
+        function closeVision() { visionActive = false; document.getElementById('vision-container').style.display = 'none'; stopCamera(); }
+        
+        function initMediaDB() { const request = indexedDB.open(DB_NAME, DB_VERSION); request.onupgradeneeded = (e) => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { autoIncrement: true }); }; request.onsuccess = (e) => { db = e.target.result; loadTracksFromDB(); }; }
+        function saveTrackToDB(file) { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).add(file); }
+        function loadTracksFromDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readonly'); const r = t.objectStore(STORE_NAME).getAll(); r.onsuccess = () => { if (r.result && r.result.length > 0) { playlist = r.result; renderPlaylist(); speak(`Media Database loaded. ${playlist.length} tracks.`); } }; }
+        function clearMediaDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).clear(); playlist = []; renderPlaylist(); speak("Playlist cleared."); }
+        
+        function handleMediaSelect(input) { const files = Array.from(input.files); if (files.length === 0) return; files.forEach(f => saveTrackToDB(f)); files.forEach(f => playlist.push(f)); renderPlaylist(); if (currentTrackIndex === -1) playTrack(0); }
+        function renderPlaylist() { const container = document.getElementById('playlist-container'); container.innerHTML = ''; if(playlist.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>'; return; } playlist.forEach((track, index) => { const item = document.createElement('div'); item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : ''); item.onclick = () => playTrack(index); item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`; container.appendChild(item); }); }
+        function playTrack(index) { if (index < 0 || index >= playlist.length) return; currentTrackIndex = index; const track = playlist[index]; const player = document.getElementById('audio-player'); player.src = URL.createObjectURL(track); player.play(); document.getElementById('now-playing').innerText = track.name.toUpperCase(); renderPlaylist(); const activeEl = document.querySelector('.active-track'); if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        function playNextTrack() { if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1); else playTrack(0); }
+        
+        function launchApp(url) { 
+            speak("Establishing uplink."); 
+            if (url.startsWith('http')) { window.open(url, '_blank'); } 
+            else { window.location.href = url; }
+        }
+
+        function manualSaveIdentity() {
+            const name = document.getElementById('db-name').value;
+            const sex = document.getElementById('db-sex').value;
+            const age = document.getElementById('db-age').value;
+            const acc = document.getElementById('db-access').value;
+            if(name && sex && age && acc) {
+                facesDB.push({ name: name, sex: sex, age: age, permission: acc, embedding: null });
+                localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
+                loadFaceDB();
+                closeModal('modal-db');
+                speak("Identity record saved.");
+            } else { speak("Incomplete data."); }
+        }
+        function deleteUser(index) {
+            facesDB.splice(index, 1);
+            localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
+            loadFaceDB();
+        }
+        function loadFaceDB() {
+            const list = document.getElementById('db-list');
+            list.innerHTML = "";
+            facesDB.forEach((p, i) => {
+                list.innerHTML += `
+                <div class="db-entry">
+                    <div class="db-info"><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; color:var(--primary);">${p.sex} | ${p.age} | ${p.permission}</div></div>
+                    <div class="db-actions"><div class="delete-btn" onclick="deleteUser(${i})"><i class="fas fa-trash"></i></div></div>
+                </div>`;
+            });
+        }
+
+        function toggleVoiceInput() { try { recognition.start(); } catch(e) {} }
+        function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
+        async function startCamera() { try { localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacingMode } }); const video = document.getElementById('local-vision-feed'); video.srcObject = localStream; if(camFacingMode === 'user') video.classList.add('mirrored'); else video.classList.remove('mirrored'); } catch(e) { document.getElementById('local-vision-feed').style.display = 'none'; document.getElementById('cam-error-msg').style.display = 'block'; speak("Visual sensors failing."); } }
+        function stopCamera() { if(localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } }
+        function toggleCameraSource() { stopCamera(); camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment'; startCamera(); }
+        async function takePhoto() { sfx('click'); const video = document.getElementById('local-vision-feed'); const cvs = document.createElement('canvas'); cvs.width = video.videoWidth; cvs.height = video.videoHeight; const ctx = cvs.getContext('2d'); if(camFacingMode === 'user') { ctx.translate(cvs.width, 0); ctx.scale(-1, 1); } ctx.drawImage(video, 0, 0); const imgData = cvs.toDataURL('image/jpeg'); document.getElementById('db-preview').src = imgData; document.getElementById('db-name').value = ""; document.getElementById('db-relation').value = ""; document.getElementById('modal-db').classList.add('active'); if(isModelLoaded) { document.getElementById('signature-status').innerText = "ANALYZING FACE GEOMETRY..."; document.getElementById('signature-status').style.color = "#FFA500"; const predictions = await faceModel.estimateFaces(cvs, false); if(predictions.length > 0) { const startX = predictions[0].topLeft[0]; const startY = predictions[0].topLeft[1]; const width = predictions[0].bottomRight[0] - startX; const height = predictions[0].bottomRight[1] - startY; tf.tidy(() => { const tensor = tf.browser.fromPixels(cvs); const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]); const resized = tf.image.resizeBilinear(faceT, [224, 224]); const resultTensor = recogModel.infer(resized, true); pendingEmbedding = resultTensor.arraySync(); }); document.getElementById('signature-status').innerText = "BIOMETRIC SIGNATURE ACQUIRED"; document.getElementById('signature-status').style.color = "#00FF00"; document.getElementById('btn-save-id').disabled = false; } else { document.getElementById('signature-status').innerText = "NO FACE DETECTED. RETRY."; document.getElementById('signature-status').style.color = "red"; document.getElementById('btn-save-id').disabled = true; } } }
+        async function toggleRecord() { if(isRecording) { mediaRecorder.stop(); isRecording = false; document.getElementById('btn-record').classList.remove('recording'); speak("Recording saved."); } else { if(!localStream) return; recordedChunks = []; mediaRecorder = new MediaRecorder(localStream); mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(recordedChunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = 'jarvis_recon_' + Date.now() + '.webm'; document.body.appendChild(a); a.click(); setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100); }; mediaRecorder.start(); isRecording = true; document.getElementById('btn-record').classList.add('recording'); speak("Recording started."); } }
+
+        /* --- INITIALIZATION LOGIC --- */
         window.onload = function() {
             resize();
-            draw(); // Start loop immediately
+            draw(); // Start render loop immediately
             
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
             initMediaDB();
@@ -307,7 +382,7 @@
         };
 
         async function initSystem(event) {
-            if(event) event.stopPropagation(); // CRITICAL FIX: Stop bubbling to handleInput
+            if(event) event.stopPropagation(); // Stop propagation to handleInput
             
             try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -366,6 +441,7 @@
             canvas.height = height; 
             centerX = width / 2; 
             centerY = height / 2; 
+            // Scaled slightly smaller to ensure fit in portrait
             scale = Math.min(width, height) * (width < 768 ? 0.30 : 0.22); 
             const arCvs = document.getElementById('vision-ar-canvas'); 
             if(arCvs) { arCvs.width = width; arCvs.height = height; }
@@ -379,7 +455,7 @@
                     let s = pos.coords.speed; 
                     if(s === null || s < 0) s = 0; 
                     hudData.speed = Math.round(s * 3.6); 
-                    if(pos.coords.altitude) hudData.alt = pos.coords.altitude;
+                    // hudData.alt = pos.coords.altitude; // REMOVED ALTIMETER
                 }, (err) => { }, { enableHighAccuracy: true, maximumAge: 0 }); 
             } 
             window.addEventListener('deviceorientation', (e) => {
@@ -389,7 +465,7 @@
             });
         }
 
-        // --- UNIFIED DRAW LOOP ---
+        /* --- DRAW LOOP --- */
         function drawReactor(context, x, y, r, t, isBg, colorOverride) {
             let pulseScale = 1.0;
             if(isSystemActive && analyser && dataArray) {
@@ -532,6 +608,7 @@
             ctx.translate(0, pitchY);
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = speedColor;
             ctx.beginPath(); ctx.moveTo(-s*0.6, 0); ctx.lineTo(s*0.6, 0); ctx.stroke();
+            // Pitch Ladder
             ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
             for(let i=1; i<=2; i++) { 
                 ctx.beginPath(); ctx.moveTo(-s*0.2, -i*40); ctx.lineTo(s*0.2, -i*40); ctx.stroke();
@@ -573,7 +650,7 @@
             }
             ctx.restore();
 
-            // Battery - Safe Inset
+            // Top Right Battery - Adjusted Position
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.globalAlpha = 0.8;
             ctx.font = `12px Share Tech Mono`;
@@ -635,49 +712,56 @@
         }
 
         async function analyzeFace(video, pred) {
-            if (lockedTarget.identity.color === "#00FF00" || isAnalyzing) return;
-            isAnalyzing = true; document.getElementById('vision-status').innerText = "BIOMETRIC ANALYSIS...";
-            await new Promise(r => setTimeout(r, 100));
+            // THROTTLE TO 1 FPS OR SO IF NEEDED, BUT WE'LL DO EVERY FRAME FOR NOW
             if (facesDB.length > 0) {
                 const result = tf.tidy(() => {
-                    const startX = Math.max(0, pred.topLeft[0]); const startY = Math.max(0, pred.topLeft[1]);
-                    const width = pred.bottomRight[0] - startX; const height = pred.bottomRight[1] - startY;
-                    if (width <= 0 || height <= 0) return null;
-                    const videoTensor = tf.browser.fromPixels(video);
-                    const faceTensor = videoTensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]);
-                    const resized = tf.image.resizeBilinear(faceTensor, [224, 224]);
-                    const embedding = recogModel.infer(resized, true);
-                    let maxSim = -1; let matchIndex = -1;
-                    for(let i=0; i<facesDB.length; i++) {
-                        if(!facesDB[i].embedding) continue;
-                        const dbTensor = tf.tensor(facesDB[i].embedding);
-                        const dot = embedding.mul(dbTensor).sum();
-                        const normA = embedding.norm(); const normB = dbTensor.norm();
-                        const sim = dot.div(normA.mul(normB)).dataSync()[0];
-                        if(sim > maxSim) { maxSim = sim; matchIndex = i; }
-                    }
-                    return { index: matchIndex, score: maxSim };
+                    const start = pred.topLeft; const end = pred.bottomRight;
+                    const vidT = tf.browser.fromPixels(video);
+                    const faceT = vidT.slice([parseInt(start[1]), parseInt(start[0]), 0], [parseInt(end[1] - start[1]), parseInt(end[0] - start[0]), 3]);
+                    const resized = tf.image.resizeBilinear(faceT, [224, 224]);
+                    return recogModel.infer(resized, true);
                 });
-                if (result && result.score > 0.82) {
-                    const p = facesDB[result.index]; lockedTarget.identity = { name: `ID: ${p.name.toUpperCase()}`, rel: `ACCESS: ${p.rel.toUpperCase()}`, color: "#00FF00" };
-                    document.getElementById('vision-status').innerText = "IDENTITY VERIFIED"; document.getElementById('vision-status').style.color = "#00FF00"; sfx('click');
-                } else {
-                    lockedTarget.identity = { name: "UNKNOWN", rel: "ACCESS: DENIED", color: "#FF0000" };
-                    document.getElementById('vision-status').innerText = "UNKNOWN SUBJECT"; document.getElementById('vision-status').style.color = "#FF0000";
+                
+                let bestMatch = { diff: 100, entry: null };
+                for(let entry of facesDB) {
+                    if(!entry.embedding) continue;
+                    const dbT = tf.tensor(entry.embedding);
+                    const dist = tf.tidy(() => result.sub(dbT).pow(2).sum().sqrt().dataSync()[0]);
+                    dbT.dispose();
+                    if(dist < bestMatch.diff) bestMatch = { diff: dist, entry: entry };
                 }
-            } else { lockedTarget.identity = { name: "UNKNOWN", rel: "NO DATABASE", color: "#FF0000" }; }
+                result.dispose();
+
+                if(bestMatch.diff < 12.0) {
+                    const p = bestMatch.entry;
+                    currentUser = p;
+                    lockedTarget.info = { top: p.name.toUpperCase(), bottom: `${p.sex} | ${p.age}` };
+                    
+                    if(p.permission === 'Full') { lockedTarget.color = "#00FF00"; lockedTarget.info.bottom += " | ADMIN"; } // Green
+                    else if(p.permission === 'Medium') { lockedTarget.color = "#FFFF00"; lockedTarget.info.bottom += " | LIMITED"; } // Yellow
+                    else if(p.permission === 'Missing') { lockedTarget.color = "#00E5FF"; lockedTarget.info.bottom = "AMBER ALERT"; } // Blue
+                    else { lockedTarget.color = "#888"; lockedTarget.info.bottom += " | NO ACCESS"; } // Grey
+                } else {
+                    currentUser = { name: "Unknown", permission: "None" };
+                    lockedTarget.color = "#888"; // Grey
+                    lockedTarget.info = { top: "UNKNOWN", bottom: "ACCESS DENIED" };
+                }
+            } else { 
+                currentUser = { name: "Unknown", permission: "None" };
+                lockedTarget.color = "#888"; 
+                lockedTarget.info = { top: "UNKNOWN", bottom: "NO DATABASE" };
+            }
             isAnalyzing = false;
         }
 
         function handleInput(e) { 
-            // Safe check for system active
             if(!isSystemActive) return;
             if(visionActive || document.querySelector('.modal-window.active')) return; 
             
-            const touchActive = e.type === 'touchstart'; 
-            const cx = touchActive ? e.touches[0].clientX : e.clientX; 
-            const cy = touchActive ? e.touches[0].clientY : e.clientY; 
-            const rect = canvas.getBoundingClientRect(); 
+            const cx = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            const cy = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+            
+            const rect = canvas.getBoundingClientRect();
             const dx = cx - (rect.left + centerX); 
             const dy = cy - (rect.top + centerY); 
             const dist = Math.sqrt(dx*dx + dy*dy); 
@@ -695,7 +779,7 @@
                 showMenuTrigger = true; 
                 speakRandomConfirm();   
                 try { recognition.start(); } catch(e) {}
-                setTimeout(() => { showMenuTrigger = false; }, 8000); 
+                setTimeout(() => { showMenuTrigger = false; }, 15000); // 15 Seconds
                 return;
             }
 
@@ -727,76 +811,198 @@
         window.addEventListener('touchstart', handleInput, {passive: false}); 
         window.addEventListener('mousedown', handleInput);
 
-        /* --- UTILS --- */
-        function initMediaDB() { const request = indexedDB.open(DB_NAME, DB_VERSION); request.onupgradeneeded = (e) => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { autoIncrement: true }); }; request.onsuccess = (e) => { db = e.target.result; loadTracksFromDB(); }; }
-        function saveTrackToDB(file) { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).add(file); }
-        function loadTracksFromDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readonly'); const r = t.objectStore(STORE_NAME).getAll(); r.onsuccess = () => { if (r.result && r.result.length > 0) { playlist = r.result; renderPlaylist(); speak(`Media Database loaded. ${playlist.length} tracks.`); } }; }
-        function clearMediaDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).clear(); playlist = []; renderPlaylist(); speak("Playlist cleared."); }
-        
-        function handleMediaSelect(input) { const files = Array.from(input.files); if (files.length === 0) return; files.forEach(f => saveTrackToDB(f)); files.forEach(f => playlist.push(f)); renderPlaylist(); if (currentTrackIndex === -1) playTrack(0); }
-        function renderPlaylist() { const container = document.getElementById('playlist-container'); container.innerHTML = ''; if(playlist.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>'; return; } playlist.forEach((track, index) => { const item = document.createElement('div'); item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : ''); item.onclick = () => playTrack(index); item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`; container.appendChild(item); }); }
-        function playTrack(index) { if (index < 0 || index >= playlist.length) return; currentTrackIndex = index; const track = playlist[index]; const player = document.getElementById('audio-player'); player.src = URL.createObjectURL(track); player.play(); document.getElementById('now-playing').innerText = track.name.toUpperCase(); renderPlaylist(); const activeEl = document.querySelector('.active-track'); if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-        function playNextTrack() { if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1); else playTrack(0); }
-        
-        function activateHUD() { /* No-op, integrated */ }
-        function closeHUD() { /* No-op, integrated */ }
-        
-        function launchMaps() { window.open("https://maps.google.com", "_blank"); }
-        function toggleVision() { visionActive = !visionActive; const vContainer = document.getElementById('vision-container'); const errorMsg = document.getElementById('cam-error-msg'); const video = document.getElementById('local-vision-feed'); if (visionActive) { vContainer.style.display = 'flex'; errorMsg.style.display = 'none'; video.style.display = 'block'; resize(); startCamera(); sfx('click'); } else { vContainer.style.display = 'none'; stopCamera(); } }
-        function closeVision() { visionActive = false; document.getElementById('vision-container').style.display = 'none'; stopCamera(); sfx('close'); }
-        async function startCamera() { try { localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacingMode } }); const video = document.getElementById('local-vision-feed'); video.srcObject = localStream; if(camFacingMode === 'user') video.classList.add('mirrored'); else video.classList.remove('mirrored'); } catch(e) { document.getElementById('local-vision-feed').style.display = 'none'; document.getElementById('cam-error-msg').style.display = 'block'; speak("Visual sensors failing."); } }
-        function stopCamera() { if(localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; } }
-        function toggleCameraSource() { stopCamera(); camFacingMode = (camFacingMode === 'environment') ? 'user' : 'environment'; startCamera(); }
-        async function takePhoto() { sfx('click'); const video = document.getElementById('local-vision-feed'); const cvs = document.createElement('canvas'); cvs.width = video.videoWidth; cvs.height = video.videoHeight; const ctx = cvs.getContext('2d'); if(camFacingMode === 'user') { ctx.translate(cvs.width, 0); ctx.scale(-1, 1); } ctx.drawImage(video, 0, 0); const imgData = cvs.toDataURL('image/jpeg'); document.getElementById('db-preview').src = imgData; document.getElementById('db-name').value = ""; document.getElementById('db-relation').value = ""; document.getElementById('modal-db').classList.add('active'); if(isModelLoaded) { document.getElementById('signature-status').innerText = "ANALYZING FACE GEOMETRY..."; document.getElementById('signature-status').style.color = "#FFA500"; const predictions = await faceModel.estimateFaces(cvs, false); if(predictions.length > 0) { const startX = predictions[0].topLeft[0]; const startY = predictions[0].topLeft[1]; const width = predictions[0].bottomRight[0] - startX; const height = predictions[0].bottomRight[1] - startY; tf.tidy(() => { const tensor = tf.browser.fromPixels(cvs); const faceT = tensor.slice([parseInt(startY), parseInt(startX), 0], [parseInt(height), parseInt(width), 3]); const resized = tf.image.resizeBilinear(faceT, [224, 224]); const resultTensor = recogModel.infer(resized, true); pendingEmbedding = resultTensor.arraySync(); }); document.getElementById('signature-status').innerText = "BIOMETRIC SIGNATURE ACQUIRED"; document.getElementById('signature-status').style.color = "#00FF00"; document.getElementById('btn-save-id').disabled = false; } else { document.getElementById('signature-status').innerText = "NO FACE DETECTED. RETRY."; document.getElementById('signature-status').style.color = "red"; document.getElementById('btn-save-id').disabled = true; } } }
-        async function toggleRecord() { if(isRecording) { mediaRecorder.stop(); isRecording = false; document.getElementById('btn-record').classList.remove('recording'); speak("Recording saved."); } else { if(!localStream) return; recordedChunks = []; mediaRecorder = new MediaRecorder(localStream); mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(recordedChunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = 'jarvis_recon_' + Date.now() + '.webm'; document.body.appendChild(a); a.click(); setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100); }; mediaRecorder.start(); isRecording = true; document.getElementById('btn-record').classList.add('recording'); speak("Recording started."); } }
-        function saveIdentity() { const name = document.getElementById('db-name').value; const rel = document.getElementById('db-relation').value; const img = document.getElementById('db-preview').src; if(!name || !pendingEmbedding) return; facesDB.push({ name, rel, img, embedding: pendingEmbedding }); localStorage.setItem('jarvis_faces', JSON.stringify(facesDB)); speak("Identity confirmed and encrypted."); loadFaceDB(); closeModal('modal-db'); }
-        function loadFaceDB() { const list = document.getElementById('db-list'); list.innerHTML = ""; facesDB.forEach(p => { list.innerHTML += `<div class="db-entry"><img src="${p.img}" class="db-img"><div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; opacity:0.7;">${p.rel}</div></div></div>`; }); }
-        function clearDB() { facesDB = []; localStorage.removeItem('jarvis_faces'); loadFaceDB(); speak("Database wiped."); }
-        
-        function launchApp(url) { 
-            speak("Establishing uplink."); 
-            if (url.startsWith('http')) { window.open(url, '_blank'); } 
-            else { window.location.href = url; }
+        /* --- DB MANAGEMENT --- */
+        function manualSaveIdentity() {
+            const name = document.getElementById('db-name').value;
+            const sex = document.getElementById('db-sex').value;
+            const age = document.getElementById('db-age').value;
+            const acc = document.getElementById('db-access').value;
+            
+            if(name && sex && age && acc) {
+                facesDB.push({ name: name, sex: sex, age: age, permission: acc, embedding: null });
+                localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
+                loadFaceDB();
+                closeModal('modal-db');
+                speak("Identity record saved.");
+            } else {
+                speak("Incomplete data.");
+            }
         }
-        
-        function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
-        function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
-        function closeAllModals() { document.querySelectorAll('.modal-window').forEach(m => m.classList.remove('active')); }
-        
+
+        function deleteUser(index) {
+            facesDB.splice(index, 1);
+            localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
+            loadFaceDB();
+        }
+
+        function loadFaceDB() {
+            const list = document.getElementById('db-list');
+            list.innerHTML = "";
+            facesDB.forEach((p, i) => {
+                list.innerHTML += `
+                <div class="db-entry">
+                    <div class="db-info">
+                        <div style="font-weight:bold;">${p.name}</div>
+                        <div style="font-size:10px; color:var(--primary);">${p.sex} | ${p.age} | ${p.permission}</div>
+                    </div>
+                    <div class="db-actions">
+                        <div class="delete-btn" onclick="deleteUser(${i})"><i class="fas fa-trash"></i></div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        // --- SPEECH COMMANDS ---
         function initSpeech() { 
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition; 
             if(!SR) return; 
             recognition = new SR(); 
             recognition.continuous = false; 
             recognition.interimResults = false;
-            recognition.lang = 'en-GB'; 
+            recognition.lang = 'en-US'; // Better command recognition
             
             recognition.onresult = (e) => { 
-                const last = e.results.length - 1;
-                const cmd = e.results[last][0].transcript.toLowerCase().trim();
-                console.log("Command:", cmd);
+                const t = e.results[0][0].transcript.toLowerCase().trim();
+                console.log("Command:", t);
+                processVoiceCommand(t);
+            };
 
-                if(cmd.includes('vision') || cmd.includes('camera')) { speakRandomConfirm(); if(!visionActive) toggleVision(); }
-                else if(cmd.includes('close vision') || cmd.includes('stop camera')) { speakRandomConfirm(); if(visionActive) closeVision(); }
-                else if(cmd.includes('media') || cmd.includes('music')) { speakRandomConfirm(); openModal('modal-media'); }
-                else if(cmd.includes('close')) { speakRandomConfirm(); closeAllModals(); }
-                else if(cmd.includes('comms') || cmd.includes('social')) { speakRandomConfirm(); openModal('modal-comms'); }
-                else if(cmd.includes('whatsapp')) { launchApp('whatsapp://send?text='); }
-                else if(cmd.includes('facebook')) { launchApp('https://m.facebook.com/'); }
-                else if(cmd.includes('messenger')) { launchApp('https://m.me/'); }
-                else if(cmd.includes('instagram')) { launchApp('https://www.instagram.com/'); }
-                else if(cmd.includes('play')) { 
+            recognition.onend = () => {
+                // If in conversation, keep listening
+                if(conversationState !== "IDLE") {
+                    try { recognition.start(); } catch(e){}
+                }
+            };
+        }
+
+        function processVoiceCommand(t) {
+            // STATE MACHINE
+            if(conversationState === "IDLE") {
+                // ENROLLMENT TRIGGER
+                if(t.includes("scan person") || t.includes("scan target")) {
+                    // Basic security check: normally only Admin can add, but for now let's allow it
+                    speak("Scanning target.");
+                    captureAndEnroll();
+                    return;
+                }
+                
+                // SECURITY CHECK FOR COMMANDS
+                // If unknown or limited, block commands
+                if(currentUser.permission === 'None' || currentUser.permission === 'Medium') {
+                     // Allow simple chat or deny
+                     // For this demo, just deny if command
+                     if(t.includes("open") || t.includes("close") || t.includes("play")) {
+                         speak("Access denied.");
+                         return;
+                     }
+                }
+
+                // COMMANDS
+                if(t.includes('vision') || t.includes('camera')) { speakRandomConfirm(); if(!visionActive) toggleVision(); }
+                else if(t.includes('close vision')) { speakRandomConfirm(); if(visionActive) closeVision(); }
+                else if(t.includes('media') || t.includes('music')) { speakRandomConfirm(); openModal('modal-media'); }
+                else if(t.includes('close')) { speakRandomConfirm(); closeAllModals(); }
+                else if(t.includes('comms')) { speakRandomConfirm(); openModal('modal-comms'); }
+                else if(t.includes('whatsapp')) { launchApp('whatsapp://send?text='); }
+                else if(t.includes('facebook')) { launchApp('https://m.facebook.com/'); }
+                else if(t.includes('messenger')) { launchApp('https://m.me/'); }
+                else if(t.includes('instagram')) { launchApp('https://www.instagram.com/'); }
+                else if(t.includes('play')) { 
                     const player = document.getElementById('audio-player');
                     if (playlist.length > 0) {
                         if(!player.src || player.src === "") playTrack(0); else player.play();
-                    } else { speak("Playlist empty, Sir."); }
+                    } else { speak("Playlist empty."); }
                 }
-                else if(cmd.includes('pause') || cmd.includes('stop')) { document.getElementById('audio-player').pause(); }
-                else if(cmd.includes('next') || cmd.includes('skip')) { playNextTrack(); }
-                else if(cmd.includes('clear playlist')) { clearMediaDB(); }
-                else if(cmd.includes('database')) { speakRandomConfirm(); openModal('modal-db'); }
-                else if(cmd.includes('full screen')) { requestFullScreen(); }
-            };
+                else if(t.includes('pause') || t.includes('stop')) { document.getElementById('audio-player').pause(); }
+                else if(t.includes('next')) { playNextTrack(); }
+                else if(t.includes('database')) { speakRandomConfirm(); openModal('modal-db'); }
+                else if(t.includes('full screen')) { requestFullScreen(); }
+            }
+            
+            // ENROLLMENT FLOW
+            else if(conversationState === "SCAN_CONFIRM") {
+                if(t.includes("yes")) {
+                    conversationState = "ASK_NAME";
+                    speak("Who is this person, Sir?");
+                    // Auto-restart mic handled by onend
+                } else {
+                    conversationState = "IDLE";
+                    speak("Scan discarded.");
+                }
+            }
+            
+            else if(conversationState === "ASK_NAME") {
+                if(t.length > 0) {
+                    tempNewUser.name = t.toUpperCase();
+                    conversationState = "ASK_SEX";
+                    speak("Is it a male or female?");
+                }
+            }
+            
+            else if(conversationState === "ASK_SEX") {
+                if(t.includes("female")) tempNewUser.sex = "Female";
+                else tempNewUser.sex = "Male";
+                conversationState = "ASK_AGE";
+                speak("How old is that person?");
+            }
+            
+            else if(conversationState === "ASK_AGE") {
+                let age = t.replace(/\D/g,'');
+                if(age) {
+                    tempNewUser.age = age;
+                    conversationState = "ASK_ACCESS";
+                    speak("What level of access? Full, Medium, or None?");
+                }
+            }
+            
+            else if(conversationState === "ASK_ACCESS") {
+                if(t.includes("full")) tempNewUser.permission = "Full";
+                else if(t.includes("medium")) tempNewUser.permission = "Medium";
+                else if(t.includes("missing")) tempNewUser.permission = "Missing";
+                else tempNewUser.permission = "None";
+                
+                // SAVE
+                facesDB.push(tempNewUser);
+                localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
+                loadFaceDB();
+                conversationState = "IDLE";
+                speak("Identity registered. Permissions updated.");
+            }
+        }
+
+        async function captureAndEnroll() {
+            if(!visionActive) {
+                toggleVision();
+                // Wait for camera warm up
+                await new Promise(r => setTimeout(r, 2000)); 
+            }
+            
+            const video = document.getElementById('local-vision-feed');
+            const preds = await faceModel.estimateFaces(video, false);
+            
+            if(preds.length > 0) {
+                const pred = preds[0];
+                const start = pred.topLeft; const end = pred.bottomRight;
+                
+                // Get Embedding
+                const tensor = tf.tidy(() => {
+                    const vidT = tf.browser.fromPixels(video);
+                    const faceT = vidT.slice([parseInt(start[1]), parseInt(start[0]), 0], [parseInt(end[1] - start[1]), parseInt(end[0] - start[0]), 3]);
+                    const resized = tf.image.resizeBilinear(faceT, [224, 224]);
+                    return recogModel.infer(resized, true);
+                });
+                
+                // Store pending data
+                tempNewUser = { embedding: tensor.arraySync() };
+                tensor.dispose();
+                
+                conversationState = "SCAN_CONFIRM";
+                speak("Scan complete. Shall I add this person to the database?");
+                // Mic will restart due to onend logic
+            } else {
+                speak("No face detected.");
+                conversationState = "IDLE";
+            }
         }
 
         function toggleVoiceInput() { try { recognition.start(); } catch(e) {} }
