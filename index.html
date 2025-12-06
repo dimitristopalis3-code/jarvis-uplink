@@ -78,10 +78,7 @@
         /* New HUD Gauge Canvas replaces CSS elements */
         #hud-gauge-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;}
         
-        /* Restored Crosshair Wings - Overlays the Canvas */
-        .hud-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 60px; z-index: 10; display: flex; justify-content: center; align-items: center; pointer-events: none; }
-        .wing-left, .wing-right { width: 60px; height: 4px; background: var(--primary); border: 1px solid #000; box-shadow: 0 0 10px var(--primary); transition: background 0.3s; }
-        .wing-center { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); margin: 0 5px; box-shadow: 0 0 10px var(--primary); transition: border-color 0.3s; }
+        /* Removed Crosshair CSS */
 
         .hud-bot { height: 80px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-top: 1px solid var(--primary); background: rgba(0,0,0,0.9); flex-shrink: 0; z-index: 20; }
         .hud-btn { background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); width: 60px; height: 60px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
@@ -155,8 +152,6 @@
             </div>
         </div>
         <div class="hud-mid">
-            <!-- RESTORED CROSSHAIR OVERLAY -->
-            <div class="hud-crosshair"><div class="wing-left"></div><div class="wing-center"></div><div class="wing-right"></div></div>
             <!-- CANVAS REACTOR LAYER -->
             <canvas id="hud-gauge-canvas"></canvas>
         </div>
@@ -369,16 +364,18 @@
             context.save(); context.rotate(t * 0.02); context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10; context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke(); context.restore();
         }
 
-        // --- NEW HUD REACTOR DRAW LOGIC (WITH TELEMETRY & CLEANING FIX) ---
+        // --- NEW HUD REACTOR DRAW LOGIC (MARK III) ---
         function drawHUDGauge() {
             const hCvs = document.getElementById('hud-gauge-canvas');
             if(!hCvs) return;
             const hCtx = hCvs.getContext('2d');
             const hW = hCvs.width; const hH = hCvs.height;
             const hCX = hW / 2; const hCY = hH / 2;
-            const rad = Math.min(hW, hH) * 0.4;
             
-            // FIX: Reset transform before clearing to ensure full clear
+            // REDUCED SCALE (0.30 instead of 0.40)
+            const rad = Math.min(hW, hH) * 0.30; 
+            
+            // FIX: Reset transform before clearing
             hCtx.setTransform(1, 0, 0, 1, 0, 0);
             hCtx.clearRect(0,0, hW, hH);
             
@@ -389,13 +386,6 @@
             else if(speed > 100 && speed <= 150) speedColor = '#FFA500'; // Orange
             else if(speed > 150) speedColor = '#FF0000'; // Red
 
-            // Update Crosshair color to match
-            document.querySelectorAll('.wing-left, .wing-right, .wing-center').forEach(el => {
-                el.style.backgroundColor = speedColor;
-                el.style.borderColor = speed > 150 ? '#FFF' : '#000';
-                el.style.boxShadow = `0 0 10px ${speedColor}`;
-            });
-
             // 1. Static Reactor Ring (Outer) - PASSING CENTER COORDS
             drawReactor(hCtx, hCX, hCY, rad, time, false, speedColor);
             
@@ -403,14 +393,14 @@
             hCtx.setTransform(1,0,0,1,0,0);
             hCtx.translate(hCX, hCY);
             
-            // 2. Compass Ring (Rotates with Alpha)
+            // 2. Compass Ring (MOVED OUTSIDE)
             hCtx.save();
             const compassRad = -hudData.alpha * (Math.PI / 180);
             hCtx.rotate(compassRad);
             
             hCtx.strokeStyle = speedColor;
             hCtx.fillStyle = speedColor;
-            hCtx.font = `bold ${rad*0.2}px Share Tech Mono`;
+            hCtx.font = `bold ${rad*0.25}px Share Tech Mono`; // Increased font slightly
             hCtx.textAlign = 'center';
             hCtx.textBaseline = 'middle';
             
@@ -418,7 +408,8 @@
             for(let i=0; i<4; i++) {
                 hCtx.save();
                 hCtx.rotate(i * (Math.PI/2)); 
-                hCtx.translate(0, -rad * 0.85); 
+                // PUSH OUTSIDE THE RING (Radius * 1.25)
+                hCtx.translate(0, -rad * 1.35); 
                 hCtx.rotate(-i * (Math.PI/2)); 
                 hCtx.fillText(directions[i], 0, 0);
                 hCtx.restore();
@@ -461,25 +452,41 @@
             hCtx.fillStyle = speedColor;
             hCtx.fillText("KM/H", 0, rad*0.45);
 
-            // 5. TELEMETRY (Lean Angle, Alt, Batt)
-            hCtx.font = `bold ${rad*0.15}px Share Tech Mono`;
-            hCtx.fillStyle = '#FFFFFF';
+            // 5. PERIPHERAL TELEMETRY (FIXED POSITIONS)
+            // We use SetTransform to draw in absolute screen coordinates, ignoring rotation
+            hCtx.setTransform(1, 0, 0, 1, 0, 0); 
             
-            // Lean Angle (Left/Right)
+            hCtx.font = `bold ${rad*0.25}px Share Tech Mono`;
+            hCtx.shadowBlur = 0;
+
+            // ALTITUDE (Sides)
+            hCtx.fillStyle = '#FFFFFF';
+            hCtx.textAlign = 'left';
+            hCtx.fillText(`ALT`, 20, hCY - 20); 
+            hCtx.fillText(`${Math.round(hudData.alt)}m`, 20, hCY + 10); // Left Side
+
+            hCtx.textAlign = 'right';
+            hCtx.fillText(`ALT`, hW - 20, hCY - 20); 
+            hCtx.fillText(`${Math.round(hudData.alt)}m`, hW - 20, hCY + 10); // Right Side
+
+            // BATTERY (Top Right Corner)
+            hCtx.fillStyle = hudData.batt < 20 ? '#FF0000' : '#00E5FF';
+            hCtx.textAlign = 'right';
+            hCtx.fillText(`PWR ${hudData.batt}%`, hW - 20, 40);
+
+            // LEAN ANGLE (Bottom Corners)
+            hCtx.fillStyle = '#FFFFFF';
             let lean = Math.round(hudData.gamma);
             let leanText = (lean > 0) ? `R ${lean}°` : `L ${Math.abs(lean)}°`;
-            if(Math.abs(lean) < 2) leanText = "--°"; // Straight
+            if(Math.abs(lean) < 2) leanText = "--°";
             
-            hCtx.textAlign = 'right';
-            hCtx.fillText(leanText, -rad*1.2, 0);
-
-            // Altitude (Top Right)
             hCtx.textAlign = 'left';
-            hCtx.fillText(`ALT ${Math.round(hudData.alt)}m`, rad*1.2, -rad*0.2);
+            hCtx.fillText(`BANK`, 20, hH - 40);
+            hCtx.fillText(leanText, 20, hH - 15); // Bottom Left
 
-            // Battery (Bottom Right)
-            hCtx.fillStyle = hudData.batt < 20 ? '#FF0000' : '#00E5FF';
-            hCtx.fillText(`PWR ${hudData.batt}%`, rad*1.2, rad*0.2);
+            hCtx.textAlign = 'right';
+            hCtx.fillText(`BANK`, hW - 20, hH - 40);
+            hCtx.fillText(leanText, hW - 20, hH - 15); // Bottom Right
         }
 
         function drawTacticalHUD(ctx, x, y, r, t, color, name, relation) {
