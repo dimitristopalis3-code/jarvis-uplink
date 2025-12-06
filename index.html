@@ -369,7 +369,7 @@
             context.save(); context.rotate(t * 0.02); context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10; context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke(); context.restore();
         }
 
-        // --- NEW HUD REACTOR DRAW LOGIC (WITH TELEMETRY) ---
+        // --- NEW HUD REACTOR DRAW LOGIC (WITH TELEMETRY & CLEANING FIX) ---
         function drawHUDGauge() {
             const hCvs = document.getElementById('hud-gauge-canvas');
             if(!hCvs) return;
@@ -378,6 +378,8 @@
             const hCX = hW / 2; const hCY = hH / 2;
             const rad = Math.min(hW, hH) * 0.4;
             
+            // FIX: Reset transform before clearing to ensure full clear
+            hCtx.setTransform(1, 0, 0, 1, 0, 0);
             hCtx.clearRect(0,0, hW, hH);
             
             // DYNAMIC COLOR BASED ON SPEED
@@ -637,7 +639,7 @@
                 watchId = navigator.geolocation.watchPosition((pos) => { 
                     let s = pos.coords.speed; 
                     if(s === null || s < 0) s = 0; 
-                    hudData.speed = Math.round(s * 3.6);
+                    hudData.speed = Math.round(s * 3.6); 
                     if(pos.coords.altitude) hudData.alt = pos.coords.altitude; // CAPTURE ALTITUDE
                 }, (err) => { }, { enableHighAccuracy: true, maximumAge: 0 }); 
             } 
