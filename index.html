@@ -241,8 +241,24 @@
         let recogModel = null;
         let isModelLoaded = false;
         let pendingEmbedding = null;
-        let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
+        
+        // DECOUPLED TRACKING VARS
+        // active: should we draw the ring?
+        // x,y: current interpolated draw position
+        // targetX, targetY: destination from AI
+        // lastSeen: timestamp of last valid detection
+        // color, info: visual properties
+        let lockedTarget = { 
+            active: false, 
+            x: 0, y: 0, 
+            targetX: 0, targetY: 0,
+            identity: null, 
+            lastSeen: 0, 
+            color: "#888888",
+            info: { top: "", bottom: "" }
+        };
         let isAnalyzing = false;
+        let isDetecting = false; // Semaphore for async loop
 
         const menuItems = [
             { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: -Math.PI * 0.8 }, 
@@ -258,7 +274,7 @@
         const DB_NAME = 'JarvisMediaDB'; const DB_VERSION = 1; const STORE_NAME = 'tracks';
         let db;
 
-        /* --- HELPER FUNCTIONS (HOISTED) --- */
+        /* --- HELPER FUNCTIONS --- */
         function sfx(type) { 
             if(!audioCtx) return;
             try {
@@ -299,7 +315,13 @@
             visionActive = !visionActive; 
             const v = document.getElementById('vision-container'); 
             v.style.display = visionActive?'flex':'none'; 
-            if(visionActive) startCamera(); else stopCamera(); 
+            if(visionActive) {
+                startCamera();
+                // START DETECTION LOOP
+                runDetectionLoop();
+            } else {
+                stopCamera();
+            }
         }
         function closeVision() { visionActive = false; document.getElementById('vision-container').style.display = 'none'; stopCamera(); }
         
@@ -377,8 +399,6 @@
                     document.getElementById('model-status').innerText = "MANUAL MODE";
                 }
             })();
-            
-            if ('serviceWorker' in navigator) navigator.serviceWorker.register('/jarvis-uplink/sw.js', { scope: '/jarvis-uplink/' }).catch(e => console.log('SW Fail', e));
         };
 
         async function initSystem(event) {
@@ -441,7 +461,6 @@
             canvas.height = height; 
             centerX = width / 2; 
             centerY = height / 2; 
-            // Scaled slightly smaller to ensure fit in portrait
             scale = Math.min(width, height) * (width < 768 ? 0.30 : 0.22); 
             const arCvs = document.getElementById('vision-ar-canvas'); 
             if(arCvs) { arCvs.width = width; arCvs.height = height; }
@@ -455,7 +474,6 @@
                     let s = pos.coords.speed; 
                     if(s === null || s < 0) s = 0; 
                     hudData.speed = Math.round(s * 3.6); 
-                    // hudData.alt = pos.coords.altitude; // REMOVED ALTIMETER
                 }, (err) => { }, { enableHighAccuracy: true, maximumAge: 0 }); 
             } 
             window.addEventListener('deviceorientation', (e) => {
@@ -548,41 +566,92 @@
 
                 if(visionActive) {
                     const arCvs = document.getElementById('vision-ar-canvas'); 
-                    if(arCvs) {
+                    if(arCvs && isModelLoaded) {
                         const arCtx = arCvs.getContext('2d');
                         arCtx.setTransform(1,0,0,1,0,0); arCtx.clearRect(0,0, arCvs.width, arCvs.height);
-                        if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
-                            const video = document.getElementById('local-vision-feed');
-                            try {
-                                const predictions = await faceModel.estimateFaces(video, false);
-                                if (predictions.length > 0) {
-                                    const pred = predictions[0];
-                                    const vidW = video.videoWidth; const vidH = video.videoHeight; const cvsW = arCvs.width; const cvsH = arCvs.height;
-                                    const scaleFit = Math.max(cvsW / vidW, cvsH / vidH); const xOff = (cvsW - vidW * scaleFit) / 2; const yOff = (cvsH - vidH * scaleFit) / 2;
-                                    const startX = pred.topLeft[0]; const startY = pred.topLeft[1]; const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
-                                    const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2); const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
-                                    let targetX = faceX; if (camFacingMode === 'user') targetX = cvsW - faceX;
-                                    
-                                    const smoothFactor = 0.12; 
-                                    if (!lockedTarget.active) { 
-                                        lockedTarget.x = targetX; lockedTarget.y = faceY; lockedTarget.active = true; 
-                                        lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" }; 
-                                        analyzeFace(video, pred); 
-                                    } 
-                                    else { 
-                                        lockedTarget.x += (targetX - lockedTarget.x) * smoothFactor;
-                                        lockedTarget.y += (faceY - lockedTarget.y) * smoothFactor;
-                                    }
-                                    lockedTarget.lastSeen = time;
-                                } else {
-                                    if (time - lockedTarget.lastSeen > 60) { lockedTarget.active = false; }
-                                }
-                                if (lockedTarget.active) drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
-                            } catch (err) {}
+                        
+                        // DRAW TARGET IF ACTIVE
+                        if(lockedTarget.active) {
+                            // Persistence: check time
+                            const lostTime = time - lockedTarget.lastSeen;
+                            // 300 frames = 5 seconds
+                            if(lostTime < 300) {
+                                // Smooth movement
+                                lockedTarget.x = lerp(lockedTarget.x, lockedTarget.targetX, 0.15);
+                                lockedTarget.y = lerp(lockedTarget.y, lockedTarget.targetY, 0.15);
+                                
+                                // Calc fade
+                                let alpha = 1.0;
+                                if(lostTime > 180) alpha = 1.0 - ((lostTime - 180) / 120); // Fade last 2s
+                                
+                                arCtx.globalAlpha = alpha;
+                                
+                                const tr = 150; // Ring size
+                                arCtx.translate(lockedTarget.x, lockedTarget.y);
+                                
+                                // DRAW NEW REACTOR STYLE LOCK RING
+                                drawLockRing(arCtx, tr, lockedTarget.color);
+                                
+                                arCtx.fillStyle = lockedTarget.color;
+                                arCtx.font = "bold 16px Share Tech Mono";
+                                arCtx.textAlign = "left";
+                                arCtx.fillText(lockedTarget.info.top, tr + 10, -10);
+                                arCtx.font = "12px Share Tech Mono";
+                                arCtx.fillText(lockedTarget.info.bottom, tr + 10, 10);
+                                arCtx.resetTransform();
+                                arCtx.globalAlpha = 1.0;
+                            } else {
+                                lockedTarget.active = false;
+                            }
                         }
                     }
                 }
             } catch(e) { console.error("Draw Loop Error:", e); }
+        }
+
+        // ASYNC DETECTION LOOP
+        async function runDetectionLoop() {
+            if(!visionActive) return;
+            if(isDetecting) {
+                requestAnimationFrame(runDetectionLoop);
+                return;
+            }
+            isDetecting = true;
+            
+            const video = document.getElementById('local-vision-feed');
+            if(video && video.readyState === 4 && faceModel) {
+                 const predictions = await faceModel.estimateFaces(video, false);
+                 if(predictions.length > 0) {
+                     const pred = predictions[0];
+                     const start = pred.topLeft; const end = pred.bottomRight;
+                     const size = [end[0] - start[0], end[1] - start[1]];
+                     
+                     // Calculate Canvas Coords
+                     // Note: We need accurate canvas scaling
+                     const arCvs = document.getElementById('vision-ar-canvas');
+                     const scaleX = arCvs.width / video.videoWidth;
+                     const scaleY = arCvs.height / video.videoHeight;
+                     
+                     const x = start[0] * scaleX;
+                     const y = start[1] * scaleY;
+                     const w = size[0] * scaleX;
+                     const h = size[1] * scaleY;
+                     
+                     lockedTarget.targetX = x + w/2;
+                     lockedTarget.targetY = y + h/2;
+                     lockedTarget.lastSeen = time;
+                     lockedTarget.active = true;
+                     
+                     // Identify occasionally
+                     if(!isAnalyzing && (time % 30 === 0)) {
+                         isAnalyzing = true;
+                         identifyFace(video, pred);
+                     }
+                 }
+            }
+            
+            isDetecting = false;
+            requestAnimationFrame(runDetectionLoop);
         }
 
         function drawHUDData(ctx, cx, cy, s) {
@@ -630,23 +699,6 @@
             for(let i=-3; i<=3; i++) {
                 let w = (i===0) ? 30 : 15;
                 ctx.beginPath(); ctx.moveTo(-w/2, i*40); ctx.lineTo(w/2, i*40); ctx.stroke();
-            }
-            ctx.restore();
-
-            // Right Alt - Safe Clipping
-            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(width - 20, cy);
-            ctx.save();
-            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6; ctx.textAlign = 'right'; ctx.font = "10px Share Tech Mono"; ctx.fillStyle = '#00E5FF';
-            const altStep = 10; const pxPerStep = 30;
-            const offsetAlt = hudData.alt % altStep;
-            const pixelOffset = (offsetAlt / altStep) * pxPerStep;
-            ctx.beginPath(); ctx.rect(-40, -100, 80, 200); ctx.clip();
-            for(let i=-3; i<=3; i++) {
-                let y = (i * pxPerStep) + pixelOffset;
-                let val = Math.round((hudData.alt - offsetAlt) - (i * altStep));
-                ctx.beginPath(); ctx.moveTo(-5, y); ctx.lineTo(5, y); ctx.stroke();
-                if(i===0) { ctx.fillText(val, -10, y+3); ctx.fillStyle = speedColor; ctx.fillRect(-10, y-1, 20, 2); } 
-                else { ctx.fillStyle = 'rgba(255,255,255,0.5)'; if(val % 50 === 0) ctx.fillText(val, -10, y+3); }
             }
             ctx.restore();
 
@@ -702,54 +754,100 @@
             }
         }
 
-        function drawTacticalHUD(ctx, x, y, r, t, color, name, relation) {
-            ctx.save(); ctx.translate(x, y);
-            ctx.save(); ctx.rotate(t * 0.02); ctx.strokeStyle = color; ctx.lineWidth = 2; for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, 1.5); ctx.stroke(); ctx.rotate((Math.PI * 2) / 3); } ctx.restore();
-            ctx.save(); ctx.rotate(-t * 0.015); ctx.strokeStyle = color; ctx.lineWidth = 2; for(let i=0; i<2; i++) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2.0); ctx.stroke(); ctx.rotate(Math.PI); } ctx.restore();
-            ctx.save(); ctx.rotate(t * 0.005); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(0, 0, r * 1.0, 0, Math.PI*2); ctx.stroke(); ctx.restore();
-            ctx.save(); ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 30, -30); ctx.lineTo(r + 150, -30); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
-            ctx.fillStyle = color; ctx.font = "14px Share Tech Mono"; ctx.textAlign = "left"; ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.fillText(name, r + 35, -35); ctx.font = "12px Share Tech Mono"; ctx.fillText(relation, r + 35, -15); ctx.restore(); ctx.restore();
+        // --- NEW TARGET LOCK UI ---
+        function drawLockRing(ctx, r, color) {
+            // Layer 1: Outer Ticks (Faster rotation)
+            ctx.save();
+            ctx.rotate(time * 0.05);
+            for (let i = 0; i < 60; i++) {
+                ctx.rotate(Math.PI * 2 / 60);
+                ctx.beginPath();
+                ctx.moveTo(r, 0);
+                ctx.lineTo(r * 1.1, 0);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Layer 2: Mid Arcs (Counter-rotate, transparent)
+            ctx.save();
+            ctx.rotate(-time * 0.02);
+            ctx.lineWidth = r * 0.12;
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.5;
+            for(let j=0; j<3; j++) {
+                ctx.beginPath();
+                ctx.arc(0, 0, r * 0.85, 0, 1.2);
+                ctx.stroke();
+                ctx.rotate(Math.PI*2/3);
+            }
+            ctx.restore();
+
+            // Layer 3: Inner Solid Ring
+            ctx.save();
+            ctx.rotate(time * 0.02);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.75, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.restore();
+
+            // Layer 4: Core Segments (Face Box)
+            ctx.save();
+            ctx.rotate(-time * 0.05);
+            ctx.lineWidth = r * 0.05;
+            ctx.strokeStyle = color;
+            for(let l=0; l<2; l++) {
+                ctx.beginPath();
+                ctx.arc(0,0, r * 0.65, 0, 2.0);
+                ctx.stroke();
+                ctx.rotate(Math.PI);
+            }
+            ctx.restore();
         }
-
-        async function analyzeFace(video, pred) {
-            // THROTTLE TO 1 FPS OR SO IF NEEDED, BUT WE'LL DO EVERY FRAME FOR NOW
-            if (facesDB.length > 0) {
-                const result = tf.tidy(() => {
-                    const start = pred.topLeft; const end = pred.bottomRight;
-                    const vidT = tf.browser.fromPixels(video);
-                    const faceT = vidT.slice([parseInt(start[1]), parseInt(start[0]), 0], [parseInt(end[1] - start[1]), parseInt(end[0] - start[0]), 3]);
-                    const resized = tf.image.resizeBilinear(faceT, [224, 224]);
-                    return recogModel.infer(resized, true);
-                });
-                
-                let bestMatch = { diff: 100, entry: null };
-                for(let entry of facesDB) {
-                    if(!entry.embedding) continue;
-                    const dbT = tf.tensor(entry.embedding);
-                    const dist = tf.tidy(() => result.sub(dbT).pow(2).sum().sqrt().dataSync()[0]);
-                    dbT.dispose();
-                    if(dist < bestMatch.diff) bestMatch = { diff: dist, entry: entry };
-                }
-                result.dispose();
-
-                if(bestMatch.diff < 12.0) {
-                    const p = bestMatch.entry;
-                    currentUser = p;
-                    lockedTarget.info = { top: p.name.toUpperCase(), bottom: `${p.sex} | ${p.age}` };
-                    
-                    if(p.permission === 'Full') { lockedTarget.color = "#00FF00"; lockedTarget.info.bottom += " | ADMIN"; } // Green
-                    else if(p.permission === 'Medium') { lockedTarget.color = "#FFFF00"; lockedTarget.info.bottom += " | LIMITED"; } // Yellow
-                    else if(p.permission === 'Missing') { lockedTarget.color = "#00E5FF"; lockedTarget.info.bottom = "AMBER ALERT"; } // Blue
-                    else { lockedTarget.color = "#888"; lockedTarget.info.bottom += " | NO ACCESS"; } // Grey
-                } else {
-                    currentUser = { name: "Unknown", permission: "None" };
-                    lockedTarget.color = "#888"; // Grey
-                    lockedTarget.info = { top: "UNKNOWN", bottom: "ACCESS DENIED" };
-                }
-            } else { 
+        
+        async function identifyFace(video, pred) {
+            if(facesDB.length === 0) {
+                lockedTarget.color = "#888"; lockedTarget.info = { top: "UNKNOWN", bottom: "NO DATABASE" };
                 currentUser = { name: "Unknown", permission: "None" };
-                lockedTarget.color = "#888"; 
-                lockedTarget.info = { top: "UNKNOWN", bottom: "NO DATABASE" };
+                isAnalyzing = false; return;
+            }
+
+            const start = pred.topLeft; const end = pred.bottomRight;
+            const tensor = tf.tidy(() => {
+                const vidT = tf.browser.fromPixels(video);
+                const faceT = vidT.slice([parseInt(start[1]), parseInt(start[0]), 0], [parseInt(end[1] - start[1]), parseInt(end[0] - start[0]), 3]);
+                const resized = tf.image.resizeBilinear(faceT, [224, 224]);
+                return recogModel.infer(resized, true);
+            });
+            
+            let bestMatch = { diff: 100, entry: null };
+            for(let entry of facesDB) {
+                if(!entry.embedding) continue;
+                const dbT = tf.tensor(entry.embedding);
+                const dist = tf.tidy(() => tensor.sub(dbT).pow(2).sum().sqrt().dataSync()[0]);
+                dbT.dispose();
+                if(dist < bestMatch.diff) bestMatch = { diff: dist, entry: entry };
+            }
+            tensor.dispose();
+
+            // INCREASED THRESHOLD FOR MOBILE CAMERAS
+            if(bestMatch.diff < 25.0) { 
+                const p = bestMatch.entry;
+                currentUser = p;
+                lockedTarget.info = { top: p.name.toUpperCase(), bottom: `${p.sex} | ${p.age}` };
+                
+                if(p.permission === 'Full') { lockedTarget.color = "#00FF00"; lockedTarget.info.bottom += " | ADMIN"; }
+                else if(p.permission === 'Medium') { lockedTarget.color = "#FFFF00"; lockedTarget.info.bottom += " | LIMITED"; }
+                else if(p.permission === 'Missing') { lockedTarget.color = "#00E5FF"; lockedTarget.info.bottom = "AMBER ALERT"; }
+                else { lockedTarget.color = "#888"; lockedTarget.info.bottom += " | NO ACCESS"; }
+                
+            } else {
+                currentUser = { name: "Unknown", permission: "None" };
+                lockedTarget.color = "#888";
+                lockedTarget.info = { top: "UNKNOWN", bottom: "ACCESS DENIED" };
             }
             isAnalyzing = false;
         }
@@ -779,7 +877,7 @@
                 showMenuTrigger = true; 
                 speakRandomConfirm();   
                 try { recognition.start(); } catch(e) {}
-                setTimeout(() => { showMenuTrigger = false; }, 15000); // 15 Seconds
+                setTimeout(() => { showMenuTrigger = false; }, 15000); 
                 return;
             }
 
@@ -859,7 +957,7 @@
             recognition = new SR(); 
             recognition.continuous = false; 
             recognition.interimResults = false;
-            recognition.lang = 'en-US'; // Better command recognition
+            recognition.lang = 'en-US'; 
             
             recognition.onresult = (e) => { 
                 const t = e.results[0][0].transcript.toLowerCase().trim();
@@ -868,7 +966,6 @@
             };
 
             recognition.onend = () => {
-                // If in conversation, keep listening
                 if(conversationState !== "IDLE") {
                     try { recognition.start(); } catch(e){}
                 }
@@ -876,28 +973,20 @@
         }
 
         function processVoiceCommand(t) {
-            // STATE MACHINE
             if(conversationState === "IDLE") {
-                // ENROLLMENT TRIGGER
                 if(t.includes("scan person") || t.includes("scan target")) {
-                    // Basic security check: normally only Admin can add, but for now let's allow it
                     speak("Scanning target.");
                     captureAndEnroll();
                     return;
                 }
                 
-                // SECURITY CHECK FOR COMMANDS
-                // If unknown or limited, block commands
                 if(currentUser.permission === 'None' || currentUser.permission === 'Medium') {
-                     // Allow simple chat or deny
-                     // For this demo, just deny if command
                      if(t.includes("open") || t.includes("close") || t.includes("play")) {
                          speak("Access denied.");
                          return;
                      }
                 }
 
-                // COMMANDS
                 if(t.includes('vision') || t.includes('camera')) { speakRandomConfirm(); if(!visionActive) toggleVision(); }
                 else if(t.includes('close vision')) { speakRandomConfirm(); if(visionActive) closeVision(); }
                 else if(t.includes('media') || t.includes('music')) { speakRandomConfirm(); openModal('modal-media'); }
@@ -914,17 +1003,15 @@
                     } else { speak("Playlist empty."); }
                 }
                 else if(t.includes('pause') || t.includes('stop')) { document.getElementById('audio-player').pause(); }
-                else if(t.includes('next')) { playNextTrack(); }
+                else if(t.includes('next') || t.includes('skip')) { playNextTrack(); }
                 else if(t.includes('database')) { speakRandomConfirm(); openModal('modal-db'); }
                 else if(t.includes('full screen')) { requestFullScreen(); }
             }
             
-            // ENROLLMENT FLOW
             else if(conversationState === "SCAN_CONFIRM") {
                 if(t.includes("yes")) {
                     conversationState = "ASK_NAME";
                     speak("Who is this person, Sir?");
-                    // Auto-restart mic handled by onend
                 } else {
                     conversationState = "IDLE";
                     speak("Scan discarded.");
@@ -961,7 +1048,6 @@
                 else if(t.includes("missing")) tempNewUser.permission = "Missing";
                 else tempNewUser.permission = "None";
                 
-                // SAVE
                 facesDB.push(tempNewUser);
                 localStorage.setItem('jarvis_faces', JSON.stringify(facesDB));
                 loadFaceDB();
@@ -973,7 +1059,6 @@
         async function captureAndEnroll() {
             if(!visionActive) {
                 toggleVision();
-                // Wait for camera warm up
                 await new Promise(r => setTimeout(r, 2000)); 
             }
             
@@ -984,7 +1069,6 @@
                 const pred = preds[0];
                 const start = pred.topLeft; const end = pred.bottomRight;
                 
-                // Get Embedding
                 const tensor = tf.tidy(() => {
                     const vidT = tf.browser.fromPixels(video);
                     const faceT = vidT.slice([parseInt(start[1]), parseInt(start[0]), 0], [parseInt(end[1] - start[1]), parseInt(end[0] - start[0]), 3]);
@@ -992,13 +1076,11 @@
                     return recogModel.infer(resized, true);
                 });
                 
-                // Store pending data
                 tempNewUser = { embedding: tensor.arraySync() };
                 tensor.dispose();
                 
                 conversationState = "SCAN_CONFIRM";
                 speak("Scan complete. Shall I add this person to the database?");
-                // Mic will restart due to onend logic
             } else {
                 speak("No face detected.");
                 conversationState = "IDLE";
