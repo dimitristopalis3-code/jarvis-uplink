@@ -70,7 +70,7 @@
         /* MODALS */
         .modal-window { 
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(5, 8, 12, 0.98); backdrop-filter: blur(10px); z-index: 100; 
+            background: rgba(5, 8, 12, 0.98); backdrop-filter: blur(10px); z-index: 300; 
             display: flex; flex-direction: column; transform: translateY(110%);
             transition: transform 0.4s ease; padding-top: var(--safe-top);
         }
@@ -115,7 +115,7 @@
         <div style="font-size: 50px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-fingerprint"></i></div>
         <div id="start-btn">INITIALIZE JARVIS</div>
         <div style="margin-top: 20px; font-size: 12px; font-family: 'Share Tech Mono'; opacity: 0.6;">T-FORCE SECURITY PROTOCOLS</div>
-        <div id="model-status" style="margin-top:20px; font-size: 12px; color: #FFA500;">LOADING NEURAL NETWORKS...</div>
+        <div id="model-status" style="margin-top:20px; font-size: 12px; color: #FFA500;">SYSTEM STANDBY</div>
     </div>
 
     <!-- MAIN REACTOR (UNIFIED HUD) -->
@@ -199,7 +199,7 @@
             </button>
             <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid rgba(0,229,255,0.2);">
                 <div id="now-playing" style="color: var(--primary); font-size: 12px; margin-bottom: 5px; text-align: center;">NO MEDIA</div>
-                <audio id="audio-player" controls style="width:100%; height: 30px; filter: invert(1) hue-rotate(180deg);"></audio>
+                <audio id="audio-player" controls style="width:100%; height: 30px; filter: invert(1) hue-rotate(180deg);" crossorigin="anonymous"></audio>
             </div>
             <div style="font-size: 10px; color: #888; margin-top: 10px;">PLAYLIST</div>
             <button class="text-btn" style="margin-top:5px; font-size:10px; padding:5px; width:auto; border-color:red; color:red;" onclick="clearMediaDB()">CLEAR PLAYLIST</button>
@@ -222,14 +222,18 @@
         
         // STATUS FLAGS
         let visionActive = false;
-        let showMenuTrigger = false; // Is the MENU button visible?
-        let menuOpen = false;        // Are the arc buttons visible?
+        let showMenuTrigger = false; 
+        let menuOpen = false;        
+        let isSystemActive = false;
         
         // HUD SENSOR DATA
         let hudData = { alpha: 0, beta: 0, gamma: 0, speed: 0, alt: 0, batt: 100 };
         
+        // AUDIO ANALYZER
+        let audioCtx, analyser, dataArray, source;
+        let recognition;
+        
         let localStream = null;
-        let audioCtx, recognition;
         let watchId = null;
         let camFacingMode = 'environment';
         let playlist = []; 
@@ -250,19 +254,18 @@
         let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
         let isAnalyzing = false;
 
-        // MENU CONFIG (UNIFIED)
-        // Hidden by default, appear when menuOpen = true
+        // MENU CONFIG (UNIFIED) - UPWARDS ARC
         const menuItems = [
-            { id: 'media', label: 'MEDIA', icon: 'fa-folder', target: 'sub-toggle', angle: -Math.PI * 0.8 }, 
-            { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.4 }, 
-            { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: Math.PI * 0.4 }
+            { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: -Math.PI * 0.8 }, // 10 o'clock
+            { id: 'media', label: 'MEDIA', icon: 'fa-folder', target: 'sub-toggle', angle: -Math.PI * 0.5 },   // 12 o'clock
+            { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.2 } // 2 o'clock
         ];
 
-        // SUB-MENU STATE (Inside Media)
+        // SUB-MENU STATE
         let mediaSubMenuOpen = false;
         const subMenuItems = [
-            { id: 'sub-player', label: 'PLAYER', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.95 },
-            { id: 'sub-comms', label: 'COMMS', icon: 'fa-comments', target: 'modal-comms', angle: -Math.PI * 0.65 }
+            { id: 'sub-player', label: 'PLAYER', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.65 },
+            { id: 'sub-comms', label: 'COMMS', icon: 'fa-comments', target: 'modal-comms', angle: -Math.PI * 0.35 }
         ];
 
         /* --- INDEXED DB --- */
@@ -273,29 +276,77 @@
         function clearMediaDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).clear(); playlist = []; renderPlaylist(); speak("Playlist cleared."); }
 
         /* --- INIT --- */
-        async function initSystem() {
-            if ('wakeLock' in navigator) try { await navigator.wakeLock.request('screen'); } catch (e) {}
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume();
+        // Runs immediately on page load to ensure graphics start
+        window.onload = function() {
+            resize();
+            draw(); // Start loop immediately
             
-            if('getBattery' in navigator) {
-                navigator.getBattery().then(b => {
-                    hudData.batt = Math.round(b.level * 100);
-                    b.addEventListener('levelchange', () => { hudData.batt = Math.round(b.level * 100); });
-                });
-            }
-
-            // AUTO-START SENSORS
-            activateSensors();
-
-            initMediaDB();
-            try { faceModel = await blazeface.load(); recogModel = await mobilenet.load(); isModelLoaded = true; document.getElementById('model-status').innerText = "SYSTEM READY"; document.getElementById('model-status').style.color = "#00E5FF"; setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 1000); } 
-            catch (e) { document.getElementById('model-status').innerText = "AI ERROR: CHECK NETWORK"; document.getElementById('model-status').style.color = "red"; setTimeout(() => document.getElementById('start-overlay').style.display = 'none', 3000); }
             if(systemConfig.apiKey) document.getElementById('api-key-input').value = systemConfig.apiKey;
-            document.getElementById('audio-player').onended = playNextTrack;
-            loadFaceDB(); resize(); draw(); 
-            setTimeout(() => { speak("Welcome back, Jim. System secure."); }, 500);
+            initMediaDB();
+            loadFaceDB();
+            
+            (async () => {
+                try {
+                    faceModel = await blazeface.load(); 
+                    recogModel = await mobilenet.load(); 
+                    isModelLoaded = true; 
+                    document.getElementById('model-status').innerText = "AI ONLINE";
+                } catch(e) { 
+                    console.log("AI Init Failed"); 
+                    document.getElementById('model-status').innerText = "MANUAL MODE";
+                }
+            })();
+            
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('/jarvis-uplink/sw.js', { scope: '/jarvis-uplink/' }).catch(e => console.log('SW Fail', e));
+        };
+
+        async function initSystem() {
+            // Only handles permissions/overlay
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
+                
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 64;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const audioEl = document.getElementById('audio-player');
+                audioEl.onended = playNextTrack;
+                try {
+                    if(!source && audioEl) {
+                        source = audioCtx.createMediaElementSource(audioEl);
+                        source.connect(analyser);
+                        analyser.connect(audioCtx.destination);
+                    }
+                } catch(e) { console.log("Audio Route:", e); }
+
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const response = await DeviceOrientationEvent.requestPermission();
+                    if (response === 'granted') activateSensors();
+                } else {
+                    activateSensors();
+                }
+                
+                if('getBattery' in navigator) {
+                    navigator.getBattery().then(b => {
+                        hudData.batt = Math.round(b.level * 100);
+                        b.addEventListener('levelchange', () => { hudData.batt = Math.round(b.level * 100); });
+                    });
+                }
+
+                if ('wakeLock' in navigator) try { await navigator.wakeLock.request('screen'); } catch (e) {}
+
+                document.getElementById('start-overlay').style.display = 'none';
+                isSystemActive = true;
+                speak("Welcome back, Jim. System secure.");
+                requestFullScreen();
+
+            } catch(e) {
+                alert("Initialization Warning: " + e.message);
+                document.getElementById('start-overlay').style.display = 'none';
+                isSystemActive = true; 
+            }
         }
+
         function requestFullScreen() { const doc = document.documentElement; if (doc.requestFullscreen) doc.requestFullscreen(); else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen(); }
         window.addEventListener('resize', resize);
         
@@ -306,9 +357,10 @@
             canvas.height = height; 
             centerX = width / 2; 
             centerY = height / 2; 
-            scale = Math.min(width, height) * (width < 768 ? 0.35 : 0.22); 
+            // Scaled slightly smaller to ensure fit in portrait
+            scale = Math.min(width, height) * (width < 768 ? 0.30 : 0.22); 
             const arCvs = document.getElementById('vision-ar-canvas'); 
-            arCvs.width = width; arCvs.height = height;
+            if(arCvs) { arCvs.width = width; arCvs.height = height; }
         }
         
         function lerp(s, e, a) { return (1 - a) * s + a * e; }
@@ -331,110 +383,152 @@
 
         // --- UNIFIED DRAW LOOP ---
         function drawReactor(context, x, y, r, t, isBg, colorOverride) {
-            // DYNAMIC COLOR BASED ON SPEED
+            let pulseScale = 1.0;
+            if(isSystemActive && analyser && dataArray) {
+                try {
+                    analyser.getByteFrequencyData(dataArray);
+                    let avg = 0;
+                    for(let i = 0; i < dataArray.length; i++) avg += dataArray[i];
+                    avg = avg / dataArray.length;
+                    if(avg > 0) pulseScale = 1.0 + (avg / 256) * 0.5;
+                } catch(e){}
+            }
+            if(window.speechSynthesis && window.speechSynthesis.speaking) {
+                pulseScale = 1.0 + Math.abs(Math.sin(time * 0.2)) * 0.3;
+            }
+
             let speedColor = '#00E5FF';
             let speed = hudData.speed;
-            if(speed > 50 && speed <= 100) speedColor = '#00FF00'; // Green
-            else if(speed > 100 && speed <= 150) speedColor = '#FFA500'; // Orange
-            else if(speed > 150) speedColor = '#FF0000'; // Red
+            if(speed > 50 && speed <= 100) speedColor = '#00FF00';
+            else if(speed > 100 && speed <= 150) speedColor = '#FFA500';
+            else if(speed > 150) speedColor = '#FF0000';
             if(colorOverride) speedColor = colorOverride;
 
             const secondaryColor = isBg ? 'rgba(0, 229, 255, 0.5)' : speedColor; 
             const orange = '#FFA500';
 
             context.setTransform(1,0,0,1,0,0); if(isBg) context.clearRect(0,0, width, height); context.translate(x, y);
-            context.save(); context.rotate(t * 0.0005); for (let i = 0; i < 60; i++) { context.rotate(Math.PI * 2 / 60); context.beginPath(); context.moveTo(r*1.0,0); context.lineTo(r*1.1,0); context.strokeStyle = speedColor; context.lineWidth = 1; context.stroke(); } context.restore();
-            context.save(); context.rotate(-t * 0.001); context.lineWidth = r * 0.12; context.strokeStyle = secondaryColor; for(let j=0; j<3; j++) { context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke(); context.rotate(Math.PI*2/3); } context.restore();
-            context.save(); context.rotate(t * 0.002); context.strokeStyle = speedColor; context.lineWidth = 2; context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke(); context.restore();
             
-            // If Listening, pulse the core
+            // Outer Ring - BOLD
+            context.save(); context.rotate(t * 0.0005); 
+            for (let i = 0; i < 60; i++) { 
+                context.rotate(Math.PI * 2 / 60); context.beginPath(); 
+                context.moveTo(r*1.0,0); context.lineTo(r*1.1,0); 
+                context.strokeStyle = speedColor; context.lineWidth = 1; context.stroke(); 
+            } 
+            context.restore();
+            
+            // Mid Arcs - THICKER
+            context.save(); context.rotate(-t * 0.001); 
+            context.lineWidth = r * 0.12; 
+            context.strokeStyle = secondaryColor; 
+            for(let j=0; j<3; j++) { context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke(); context.rotate(Math.PI*2/3); } 
+            context.restore();
+            
+            // Inner Circle - BOLD
+            context.save(); context.rotate(t * 0.002); 
+            context.strokeStyle = speedColor; context.lineWidth = 2; 
+            context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke(); 
+            context.restore();
+            
+            // Core Pulse
+            context.save();
             if(showMenuTrigger) {
-                context.save(); context.rotate(t * 0.05); context.lineWidth = 4; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 20; context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); context.restore();
+                context.rotate(t * 0.05); context.lineWidth = 4; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 20; context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); 
             } else {
-                context.save(); context.rotate(-t * 0.003); context.lineWidth = r * 0.1; context.strokeStyle = speedColor; for(let l=0; l<2; l++) { context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); context.rotate(Math.PI); } context.restore();
+                context.rotate(-t * 0.003); context.lineWidth = r * 0.1; context.strokeStyle = speedColor; for(let l=0; l<2; l++) { context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); context.rotate(Math.PI); } 
             }
+            context.restore();
             
-            context.save(); context.rotate(t * 0.01); context.lineWidth = 6; context.strokeStyle = orange; context.shadowColor = orange; context.shadowBlur = 15; context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke(); context.restore();
+            // Audio Ring
+            context.save(); 
+            context.rotate(t * 0.01); 
+            context.lineWidth = 6 * pulseScale; 
+            context.strokeStyle = orange; 
+            context.shadowColor = orange; 
+            context.shadowBlur = 15 * pulseScale; 
+            context.beginPath(); context.arc(0,0, r*0.55, 0, 2.0); context.stroke(); 
+            context.restore();
+
             context.save(); context.rotate(t * 0.02); context.lineWidth = 3; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 10; context.beginPath(); context.arc(0,0, r*0.45, 0, Math.PI*2); context.stroke(); context.restore();
         }
 
         async function draw() {
-            // UNIFIED MAIN DRAW LOOP
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.clearRect(0,0, width, height);
+            try {
+                // Ensure loop continues even if drawing fails
+                time++; 
+                animationFrame = requestAnimationFrame(draw);
 
-            if(!visionActive) { 
-                // DRAW REACTOR (HUD)
-                drawReactor(ctx, centerX, centerY, scale, time, true); 
-                
-                // DRAW HUD ELEMENTS OVERLAY
-                drawHUDData(ctx, centerX, centerY, scale);
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.clearRect(0,0, width, height);
 
-                // DRAW MENU (If active)
-                if(showMenuTrigger) drawMenuTrigger(ctx, centerX, centerY, scale);
-                if(menuOpen) drawMenu(ctx, centerX, centerY, scale);
-            }
-
-            if(visionActive) {
-                // Vision Logic (Keep simplified for now)
-                const arCvs = document.getElementById('vision-ar-canvas'); const arCtx = arCvs.getContext('2d');
-                arCtx.setTransform(1,0,0,1,0,0); arCtx.clearRect(0,0, arCvs.width, arCvs.height);
-                if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
-                    const video = document.getElementById('local-vision-feed');
-                    try {
-                        const predictions = await faceModel.estimateFaces(video, false);
-                        if (predictions.length > 0) {
-                            const pred = predictions[0];
-                            const vidW = video.videoWidth; const vidH = video.videoHeight; const cvsW = arCvs.width; const cvsH = arCvs.height;
-                            const scaleFit = Math.max(cvsW / vidW, cvsH / vidH); const xOff = (cvsW - vidW * scaleFit) / 2; const yOff = (cvsH - vidH * scaleFit) / 2;
-                            const startX = pred.topLeft[0]; const startY = pred.topLeft[1]; const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
-                            const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2); const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
-                            let targetX = faceX; if (camFacingMode === 'user') targetX = cvsW - faceX;
-                            
-                            const smoothFactor = 0.12; 
-                            if (!lockedTarget.active) { 
-                                lockedTarget.x = targetX; lockedTarget.y = faceY; lockedTarget.active = true; 
-                                lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" }; 
-                                analyzeFace(video, pred); 
-                            } 
-                            else { 
-                                lockedTarget.x += (targetX - lockedTarget.x) * smoothFactor;
-                                lockedTarget.y += (faceY - lockedTarget.y) * smoothFactor;
-                            }
-                            lockedTarget.lastSeen = time;
-                        } else {
-                            if (time - lockedTarget.lastSeen > 60) { lockedTarget.active = false; }
-                        }
-                        if (lockedTarget.active) drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
-                    } catch (err) {}
+                if(!visionActive) { 
+                    drawReactor(ctx, centerX, centerY, scale * 0.9, time, true); 
+                    drawHUDData(ctx, centerX, centerY, scale * 0.9);
+                    if(showMenuTrigger) drawMenuTrigger(ctx, centerX, centerY, scale);
+                    if(menuOpen) drawMenu(ctx, centerX, centerY, scale);
                 }
+
+                if(visionActive) {
+                    const arCvs = document.getElementById('vision-ar-canvas'); 
+                    if(arCvs) {
+                        const arCtx = arCvs.getContext('2d');
+                        arCtx.setTransform(1,0,0,1,0,0); arCtx.clearRect(0,0, arCvs.width, arCvs.height);
+                        if (isModelLoaded && document.getElementById('local-vision-feed').readyState === 4) {
+                            const video = document.getElementById('local-vision-feed');
+                            try {
+                                const predictions = await faceModel.estimateFaces(video, false);
+                                if (predictions.length > 0) {
+                                    const pred = predictions[0];
+                                    const vidW = video.videoWidth; const vidH = video.videoHeight; const cvsW = arCvs.width; const cvsH = arCvs.height;
+                                    const scaleFit = Math.max(cvsW / vidW, cvsH / vidH); const xOff = (cvsW - vidW * scaleFit) / 2; const yOff = (cvsH - vidH * scaleFit) / 2;
+                                    const startX = pred.topLeft[0]; const startY = pred.topLeft[1]; const endX = pred.bottomRight[0]; const endY = pred.bottomRight[1];
+                                    const faceX = (startX * scaleFit) + xOff + ((endX - startX) * scaleFit / 2); const faceY = (startY * scaleFit) + yOff + ((endY - startY) * scaleFit / 2);
+                                    let targetX = faceX; if (camFacingMode === 'user') targetX = cvsW - faceX;
+                                    
+                                    const smoothFactor = 0.12; 
+                                    if (!lockedTarget.active) { 
+                                        lockedTarget.x = targetX; lockedTarget.y = faceY; lockedTarget.active = true; 
+                                        lockedTarget.identity = { name: "UNKNOWN", rel: "ANALYZING...", color: "#FFA500" }; 
+                                        analyzeFace(video, pred); 
+                                    } 
+                                    else { 
+                                        lockedTarget.x += (targetX - lockedTarget.x) * smoothFactor;
+                                        lockedTarget.y += (faceY - lockedTarget.y) * smoothFactor;
+                                    }
+                                    lockedTarget.lastSeen = time;
+                                } else {
+                                    if (time - lockedTarget.lastSeen > 60) { lockedTarget.active = false; }
+                                }
+                                if (lockedTarget.active) drawTacticalHUD(arCtx, lockedTarget.x, lockedTarget.y, 60, time*2, lockedTarget.identity.color, lockedTarget.identity.name, lockedTarget.identity.rel);
+                            } catch (err) {}
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error("Draw Error:", e);
             }
-            time++; animationFrame = requestAnimationFrame(draw);
         }
 
         function drawHUDData(ctx, cx, cy, s) {
-            // Speed Color Logic
             let speedColor = '#00E5FF';
             let speed = hudData.speed;
             if(speed > 50 && speed <= 100) speedColor = '#00FF00';
             else if(speed > 100 && speed <= 150) speedColor = '#FFA500';
             else if(speed > 150) speedColor = '#FF0000';
 
-            // 1. COMPASS (Outer Ring)
-            ctx.setTransform(1,0,0,1,0,0);
-            ctx.translate(cx, cy);
-            ctx.save();
+            // Compass
+            ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy); ctx.save();
             ctx.rotate(-hudData.alpha * (Math.PI / 180));
-            ctx.fillStyle = speedColor;
-            ctx.font = `bold ${s*0.25}px Share Tech Mono`;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = speedColor; ctx.font = `bold ${s*0.25}px Share Tech Mono`;
+            ctx.globalAlpha = 0.8; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             const directions = ['N', 'E', 'S', 'W'];
             for(let i=0; i<4; i++) {
-                ctx.save(); ctx.rotate(i * (Math.PI/2)); ctx.translate(0, -s * 1.35); ctx.rotate(-i * (Math.PI/2)); ctx.fillText(directions[i], 0, 0); ctx.restore();
+                ctx.save(); ctx.rotate(i * (Math.PI/2)); ctx.translate(0, -s * 1.45); ctx.rotate(-i * (Math.PI/2)); ctx.fillText(directions[i], 0, 0); ctx.restore();
             }
             ctx.restore();
 
-            // 2. HORIZON (Inside Reactor)
+            // Horizon
             ctx.save();
             ctx.rotate(-hudData.gamma * (Math.PI / 180));
             const pitchY = hudData.beta * 3;
@@ -442,62 +536,63 @@
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = speedColor;
             ctx.beginPath(); ctx.moveTo(-s*0.6, 0); ctx.lineTo(s*0.6, 0); ctx.stroke();
             // Pitch Ladder
-            ctx.lineWidth = 1; ctx.globalAlpha = 0.5;
-            for(let i=1; i<=3; i++) {
-                ctx.beginPath(); ctx.moveTo(-s*0.3, -i*30); ctx.lineTo(s*0.3, -i*30); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(-s*0.3, i*30); ctx.lineTo(s*0.3, i*30); ctx.stroke();
+            ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
+            for(let i=1; i<=2; i++) { 
+                ctx.beginPath(); ctx.moveTo(-s*0.2, -i*40); ctx.lineTo(s*0.2, -i*40); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-s*0.2, i*40); ctx.lineTo(s*0.2, i*40); ctx.stroke();
             }
             ctx.restore();
 
-            // 3. SPEEDOMETER (Center)
-            ctx.shadowBlur = 0; ctx.fillStyle = '#FFFFFF';
+            // Speed
+            ctx.shadowBlur = 0; ctx.fillStyle = '#FFFFFF'; ctx.globalAlpha = 1.0;
             ctx.font = `900 ${s*0.6}px Orbitron`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(hudData.speed, 0, 10);
             ctx.font = `bold ${s*0.15}px Share Tech Mono`; ctx.fillStyle = speedColor;
             ctx.fillText("KM/H", 0, s*0.45);
 
-            // 4. PERIPHERALS (Absolute)
+            // Peripherals
             ctx.setTransform(1,0,0,1,0,0);
-            
-            // LEFT: Pitch Ladder (Side)
-            ctx.translate(40, cy);
-            ctx.save();
+            // Left Pitch
+            ctx.translate(20, cy); ctx.save();
             ctx.rotate(-hudData.gamma * (Math.PI / 180));
             ctx.translate(0, hudData.beta * 4);
-            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.shadowBlur = 5; ctx.shadowColor = speedColor;
-            for(let i=-4; i<=4; i++) {
-                let w = (i===0) ? 40 : 20;
-                ctx.beginPath(); ctx.moveTo(-w/2, i*30); ctx.lineTo(w/2, i*30); ctx.stroke();
+            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6;
+            for(let i=-3; i<=3; i++) {
+                let w = (i===0) ? 30 : 15;
+                ctx.beginPath(); ctx.moveTo(-w/2, i*40); ctx.lineTo(w/2, i*40); ctx.stroke();
             }
             ctx.restore();
 
-            // RIGHT: Altitude Tape
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.translate(width - 40, cy);
-            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.textAlign = 'right'; ctx.font = "10px Share Tech Mono"; ctx.fillStyle = '#00E5FF';
-            const altStep = 10; const pxPerStep = 20;
+            // Right Alt - SAFE CLIPPING FIX
+            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(width - 20, cy);
+            ctx.save(); // IMPORTANT: Save state before clip
+            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6; ctx.textAlign = 'right'; ctx.font = "10px Share Tech Mono"; ctx.fillStyle = '#00E5FF';
+            const altStep = 10; const pxPerStep = 30;
             const offsetAlt = hudData.alt % altStep;
             const pixelOffset = (offsetAlt / altStep) * pxPerStep;
-            ctx.beginPath(); ctx.rect(-30, -100, 60, 200); ctx.clip();
-            for(let i=-5; i<=5; i++) {
+            ctx.beginPath(); ctx.rect(-40, -100, 80, 200); ctx.clip();
+            for(let i=-3; i<=3; i++) {
                 let y = (i * pxPerStep) + pixelOffset;
                 let val = Math.round((hudData.alt - offsetAlt) - (i * altStep));
-                ctx.beginPath(); ctx.moveTo(-10, y); ctx.lineTo(10, y); ctx.stroke();
-                if(i===0) { ctx.fillText(val, -15, y+3); ctx.fillStyle = speedColor; ctx.fillRect(-15, y-1, 30, 2); } 
-                else { ctx.fillStyle = '#888'; if(val % 50 === 0) ctx.fillText(val, -15, y+3); }
+                ctx.beginPath(); ctx.moveTo(-5, y); ctx.lineTo(5, y); ctx.stroke();
+                if(i===0) { ctx.fillText(val, -10, y+3); ctx.fillStyle = speedColor; ctx.fillRect(-10, y-1, 20, 2); } 
+                else { ctx.fillStyle = 'rgba(255,255,255,0.5)'; if(val % 50 === 0) ctx.fillText(val, -10, y+3); }
             }
+            ctx.restore(); // IMPORTANT: Restore to remove clip
 
-            // TOP RIGHT: Battery
+            // Top Right Battery - Adjusted Position
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.font = `bold 14px Share Tech Mono`;
+            ctx.globalAlpha = 0.8;
+            ctx.font = `12px Share Tech Mono`;
             ctx.fillStyle = hudData.batt < 20 ? '#FF0000' : '#00E5FF';
             ctx.textAlign = 'right';
-            ctx.fillText(`PWR ${hudData.batt}%`, width - 10, 30);
+            ctx.fillText(`${hudData.batt}%`, width - 60, 25); // Moved Inward
+            ctx.fillRect(width - 50, 15, 30 * (hudData.batt/100), 10);
+            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1; ctx.strokeRect(width-50, 15, 30, 10);
         }
 
         function drawMenuTrigger(ctx, cx, cy, s) {
-            // Draw "MENU" button at bottom of reactor
-            const btnY = s * 1.5;
+            const btnY = s * 1.1; 
             ctx.setTransform(1,0,0,1,0,0);
             ctx.translate(cx, cy);
             
@@ -505,36 +600,29 @@
             ctx.strokeStyle = "#00E5FF";
             ctx.lineWidth = 2;
             
-            // Button Shape
             ctx.beginPath();
-            ctx.roundRect(-40, btnY, 80, 40, 10);
+            const x = -40, y = btnY, w = 80, h = 40, r = 10;
+            ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r); ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r);
+            ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            // Text
-            ctx.fillStyle = "#FFFFFF";
-            ctx.font = "bold 14px Orbitron";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
+            ctx.fillStyle = "#FFFFFF"; ctx.font = "bold 14px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillText("MENU", 0, btnY + 20);
         }
 
         function drawMenu(ctx, cx, cy, s) {
-            // Draw Main Arc Menu
             menuItems.forEach(item => {
                 const outerR = s * 1.6; const innerR = s * 1.35; 
                 const angleWidth = 0.25; 
                 const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
                 
                 ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy);
+                ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
                 
-                ctx.beginPath(); 
-                ctx.arc(0, 0, outerR, startAngle, endAngle); 
-                ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
+                if (item.target === 'sub-toggle' && mediaSubMenuOpen) ctx.fillStyle = "rgba(0, 229, 255, 0.2)";
+                else ctx.fillStyle = "rgba(0, 10, 20, 0.95)"; 
                 
-                if (item.target === 'sub-toggle' && mediaSubMenuOpen) ctx.fillStyle = "rgba(0, 229, 255, 0.3)";
-                else ctx.fillStyle = "rgba(0, 10, 20, 0.8)"; 
-                
-                ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; 
+                ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 2; 
                 ctx.fill(); ctx.stroke();
                 
                 const midR = (outerR + innerR) / 2; 
@@ -551,10 +639,7 @@
                     const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
 
                     ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy);
-
-                    ctx.beginPath(); 
-                    ctx.arc(0, 0, outerR, startAngle, endAngle); 
-                    ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
+                    ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
                     
                     ctx.fillStyle = "rgba(0, 40, 60, 0.9)"; 
                     ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; 
@@ -613,7 +698,6 @@
             isAnalyzing = false;
         }
 
-        // --- INTERACTION HANDLING ---
         function handleInput(e) { 
             if(visionActive || document.querySelector('.modal-window.active')) return; 
             
@@ -626,26 +710,25 @@
             const dist = Math.sqrt(dx*dx + dy*dy); 
             const angle = Math.atan2(dy, dx); 
 
-            // 1. CHECK MENU BUTTON CLICK (6 o'clock position)
-            // Button is at Y = scale * 1.5, size approx 80x40
-            const btnY = scale * 1.5;
-            if (showMenuTrigger && Math.abs(dx) < 40 && Math.abs(dy - (btnY + 20)) < 25) {
+            // 1. CHECK MENU BUTTON CLICK (Larger Hitbox)
+            const btnY = scale * 1.1; 
+            if (showMenuTrigger && Math.abs(dx) < 60 && Math.abs(dy - (btnY + 20)) < 50) {
                 e.preventDefault(); sfx('click');
                 menuOpen = !menuOpen;
                 return;
             }
 
-            // 2. CHECK REACTOR CORE CLICK (Mic Trigger)
-            if (dist < scale * 0.4) {
+            // 2. CHECK REACTOR CORE CLICK (Mic Trigger) - WIDENED
+            if (dist < scale * 0.6) { // Increased from 0.4 for easier tapping
                 e.preventDefault(); sfx('click');
-                showMenuTrigger = true; // Show the menu button
-                speakRandomConfirm();   // "Listening..."
+                showMenuTrigger = true; 
+                speakRandomConfirm();   
                 try { recognition.start(); } catch(e) {}
-                setTimeout(() => { showMenuTrigger = false; }, 8000); // Hide button after 8s inactivity
+                setTimeout(() => { showMenuTrigger = false; }, 8000); 
                 return;
             }
 
-            // 3. CHECK ARC MENU ITEMS (If Open)
+            // 3. CHECK ARC MENU ITEMS
             if (menuOpen && dist > scale * 1.35 && dist < scale * 1.6) { 
                 menuItems.forEach(item => { 
                     let diff = angle - item.angle; 
@@ -660,7 +743,7 @@
                 }); 
             }
             
-            // 4. CHECK SUB-MENU (If Open)
+            // 4. SUB-MENU
             if (menuOpen && mediaSubMenuOpen && dist > scale * 1.05 && dist < scale * 1.3) {
                 subMenuItems.forEach(item => {
                     let diff = angle - item.angle; 
@@ -681,7 +764,6 @@
         function playTrack(index) { if (index < 0 || index >= playlist.length) return; currentTrackIndex = index; const track = playlist[index]; const player = document.getElementById('audio-player'); player.src = URL.createObjectURL(track); player.play(); document.getElementById('now-playing').innerText = track.name.toUpperCase(); renderPlaylist(); const activeEl = document.querySelector('.active-track'); if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
         function playNextTrack() { if (currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1); else playTrack(0); }
         
-        // DEPRECATED HUD FUNCTIONS (Merged into Main Loop)
         function activateHUD() { /* No-op, integrated */ }
         function closeHUD() { /* No-op, integrated */ }
         
@@ -709,7 +791,6 @@
         function sfx(type) { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); if(type === 'startup') { osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } else { osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square'; osc.start(); osc.stop(audioCtx.currentTime + 0.05); } }
         function speak(text) { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); const voices = speechSynthesis.getVoices(); const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male')); if (brit) u.voice = brit; speechSynthesis.speak(u); } }
         
-        // --- MANUAL VOICE CONTROL ---
         function initSpeech() { 
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition; 
             if(!SR) return; 
@@ -751,6 +832,7 @@
             speak(phrases[Math.floor(Math.random() * phrases.length)]);
         }
 
+        function toggleVoiceInput() { try { recognition.start(); } catch(e) {} }
         function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
     </script>
 </body>
