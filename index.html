@@ -55,7 +55,7 @@
             background: rgba(0,0,0,0.6); border: 1px solid var(--primary);
             color: var(--primary); border-radius: 50%; width: 60px; height: 60px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px; box-shadow: 0 0 15px var(--secondary); cursor: pointer;
+            font-size: 20px; box-shadow: 0 0 15px rgba(0,229,255,0.2); cursor: pointer;
             backdrop-filter: blur(5px);
         }
         .v-btn:active { transform: scale(0.95); background: rgba(0, 229, 255, 0.2); }
@@ -65,7 +65,7 @@
         /* GENERAL UI */
         #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         #start-btn { padding: 20px 40px; border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-size: 18px; font-weight: 900; animation: pulse 2s infinite; cursor: pointer; }
-        @keyframes pulse { 0% { box-shadow: 0 0 10px var(--secondary); } 50% { box-shadow: 0 0 25px var(--primary); border-color: #fff; } 100% { box-shadow: 0 0 10px var(--secondary); } }
+        @keyframes pulse { 0% { box-shadow: 0 0 10px rgba(0,229,255,0.2); } 50% { box-shadow: 0 0 25px var(--primary); border-color: #fff; } 100% { box-shadow: 0 0 10px rgba(0,229,255,0.2); } }
 
         /* MODALS */
         .modal-window { 
@@ -75,12 +75,16 @@
             transition: transform 0.4s ease; padding-top: var(--safe-top);
         }
         .modal-window.active { transform: translateY(0); }
-        .modal-header { padding: 20px; border-bottom: 1px solid var(--secondary); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;}
+        .modal-header { padding: 20px; border-bottom: 1px solid rgba(0,229,255,0.2); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;}
         .modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 15px; }
 
         /* DB & MEDIA */
-        .db-entry { border: 1px solid var(--secondary); padding: 10px; border-radius: 5px; display: flex; gap: 10px; align-items: center; }
+        .db-entry { border: 1px solid rgba(0,229,255,0.2); padding: 10px; border-radius: 5px; display: flex; gap: 10px; align-items: center; justify-content: space-between; background: rgba(0,20,40,0.5); }
+        .db-info { flex: 1; display: flex; gap: 10px; align-items: center; }
         .db-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 1px solid var(--primary); }
+        .db-actions { display: flex; gap: 10px; }
+        .delete-btn { color: #FF0000; border: 1px solid #FF0000; padding: 5px 10px; border-radius: 3px; font-size: 12px; cursor: pointer; }
+        
         input { background: #111; border: 1px solid #333; color: var(--primary); padding: 15px; width: 100%; font-family: 'Share Tech Mono'; margin-bottom: 10px; }
         .text-btn { padding: 15px; background: rgba(0, 229, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); font-family: 'Orbitron'; font-weight: bold; width: 100%; }
         .text-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -111,7 +115,7 @@
 <body>
 
     <!-- STARTUP -->
-    <div id="start-overlay" onclick="initSystem()">
+    <div id="start-overlay" onclick="initSystem(event)">
         <div style="font-size: 50px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-fingerprint"></i></div>
         <div id="start-btn">INITIALIZE JARVIS</div>
         <div style="margin-top: 20px; font-size: 12px; font-family: 'Share Tech Mono'; opacity: 0.6;">T-FORCE SECURITY PROTOCOLS</div>
@@ -157,22 +161,10 @@
         <div class="modal-header"><span>SECURE COMMS</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-comms')"></i></div>
         <div class="modal-body">
             <div class="comms-grid">
-                <div class="comms-btn" onclick="launchApp('whatsapp://send?text=')">
-                    <i class="fab fa-whatsapp comms-icon"></i>
-                    <span class="comms-label">WHATSAPP</span>
-                </div>
-                <div class="comms-btn" onclick="launchApp('https://m.me/')">
-                    <i class="fab fa-facebook-messenger comms-icon"></i>
-                    <span class="comms-label">MESSENGER</span>
-                </div>
-                <div class="comms-btn" onclick="launchApp('https://m.facebook.com/')">
-                    <i class="fab fa-facebook-f comms-icon"></i>
-                    <span class="comms-label">FACEBOOK</span>
-                </div>
-                <div class="comms-btn" onclick="launchApp('https://www.instagram.com/')">
-                    <i class="fab fa-instagram comms-icon"></i>
-                    <span class="comms-label">INSTAGRAM</span>
-                </div>
+                <div class="comms-btn" onclick="launchApp('whatsapp://send?text=')"><i class="fab fa-whatsapp comms-icon"></i><span class="comms-label">WHATSAPP</span></div>
+                <div class="comms-btn" onclick="launchApp('https://m.me/')"><i class="fab fa-facebook-messenger comms-icon"></i><span class="comms-label">MESSENGER</span></div>
+                <div class="comms-btn" onclick="launchApp('https://m.facebook.com/')"><i class="fab fa-facebook-f comms-icon"></i><span class="comms-label">FACEBOOK</span></div>
+                <div class="comms-btn" onclick="launchApp('https://www.instagram.com/')"><i class="fab fa-instagram comms-icon"></i><span class="comms-label">INSTAGRAM</span></div>
             </div>
             <div style="margin-top:auto; font-size:10px; color:#666; text-align:center;">ENCRYPTED CHANNELS READY</div>
         </div>
@@ -194,15 +186,11 @@
         <div class="modal-header"><span>MEDIA LINK</span><i class="fas fa-times" style="font-size: 24px;" onclick="closeModal('modal-media')"></i></div>
         <div class="modal-body">
             <input type="file" id="media-upload" accept="audio/*" multiple onchange="handleMediaSelect(this)" style="display:none;">
-            <button class="text-btn" onclick="document.getElementById('media-upload').click()">
-                <i class="fas fa-plus"></i> ADD AUDIO FILES
-            </button>
+            <button class="text-btn" onclick="document.getElementById('media-upload').click()">ADD AUDIO FILES</button>
             <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid rgba(0,229,255,0.2);">
                 <div id="now-playing" style="color: var(--primary); font-size: 12px; margin-bottom: 5px; text-align: center;">NO MEDIA</div>
                 <audio id="audio-player" controls style="width:100%; height: 30px; filter: invert(1) hue-rotate(180deg);" crossorigin="anonymous"></audio>
             </div>
-            <div style="font-size: 10px; color: #888; margin-top: 10px;">PLAYLIST</div>
-            <button class="text-btn" style="margin-top:5px; font-size:10px; padding:5px; width:auto; border-color:red; color:red;" onclick="clearMediaDB()">CLEAR PLAYLIST</button>
             <div id="playlist-container">
                 <div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>
             </div>
@@ -220,63 +208,81 @@
         let systemConfig = { apiKey: localStorage.getItem('jarvis_api_key') || '' };
         let facesDB = JSON.parse(localStorage.getItem('jarvis_faces') || '[]');
         
-        // STATUS FLAGS
+        // STATES
         let visionActive = false;
         let showMenuTrigger = false; 
         let menuOpen = false;        
         let isSystemActive = false;
         
-        // HUD SENSOR DATA
+        // CONVERSATION STATE MACHINE
+        let conversationState = "IDLE"; 
+        let tempNewUser = {}; 
+        let currentUser = { name: "Unknown", permission: "None" }; 
+        
         let hudData = { alpha: 0, beta: 0, gamma: 0, speed: 0, alt: 0, batt: 100 };
         
-        // AUDIO ANALYZER
-        let audioCtx, analyser, dataArray, source;
-        let recognition;
-        
+        let audioCtx, analyser, dataArray, source, recognition;
         let localStream = null;
         let watchId = null;
         let camFacingMode = 'environment';
         let playlist = []; 
         let currentTrackIndex = -1;
+        let mediaRecorder, recordedChunks = [], isRecording = false;
 
-        // Recording
-        let mediaRecorder;
-        let recordedChunks = [];
-        let isRecording = false;
-
-        // AI Models
         let faceModel = null;
         let recogModel = null;
         let isModelLoaded = false;
         let pendingEmbedding = null;
         
-        // --- TACTICAL TRACKING STATE ---
         let lockedTarget = { active: false, x: 0, y: 0, identity: null, lastSeen: 0, color: "#888888" };
         let isAnalyzing = false;
 
-        // MENU CONFIG (UNIFIED) - UPWARDS ARC
         const menuItems = [
-            { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: -Math.PI * 0.8 }, // 10 o'clock
-            { id: 'media', label: 'MEDIA', icon: 'fa-folder', target: 'sub-toggle', angle: -Math.PI * 0.5 },   // 12 o'clock
-            { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.2 } // 2 o'clock
+            { id: 'vision', label: 'VISION', icon: 'fa-eye', target: 'vision-toggle', angle: -Math.PI * 0.8 }, 
+            { id: 'media', label: 'MEDIA', icon: 'fa-folder', target: 'sub-toggle', angle: -Math.PI * 0.5 },   
+            { id: 'config', label: 'CONFIG', icon: 'fa-cog', target: 'modal-settings', angle: -Math.PI * 0.2 } 
         ];
 
-        // SUB-MENU STATE
         let mediaSubMenuOpen = false;
         const subMenuItems = [
             { id: 'sub-player', label: 'PLAYER', icon: 'fa-music', target: 'modal-media', angle: -Math.PI * 0.65 },
             { id: 'sub-comms', label: 'COMMS', icon: 'fa-comments', target: 'modal-comms', angle: -Math.PI * 0.35 }
         ];
 
-        /* --- INDEXED DB --- */
-        let db; const DB_NAME = 'JarvisMediaDB'; const DB_VERSION = 1; const STORE_NAME = 'tracks';
-        function initMediaDB() { const request = indexedDB.open(DB_NAME, DB_VERSION); request.onupgradeneeded = (e) => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { autoIncrement: true }); }; request.onsuccess = (e) => { db = e.target.result; loadTracksFromDB(); }; }
-        function saveTrackToDB(file) { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).add(file); }
-        function loadTracksFromDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readonly'); const r = t.objectStore(STORE_NAME).getAll(); r.onsuccess = () => { if (r.result && r.result.length > 0) { playlist = r.result; renderPlaylist(); speak(`Media Database loaded. ${playlist.length} tracks.`); } }; }
-        function clearMediaDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).clear(); playlist = []; renderPlaylist(); speak("Playlist cleared."); }
+        /* --- CORE UTILS MOVED UP FOR SAFETY --- */
+        function sfx(type) { 
+            if(!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); 
+                osc.connect(gain); gain.connect(audioCtx.destination); 
+                if(type === 'startup') { 
+                    osc.frequency.setValueAtTime(200, audioCtx.currentTime); 
+                    osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); 
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.5); 
+                } else { 
+                    osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square'; 
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.05); 
+                }
+            } catch(e){}
+        }
+
+        function speak(text) { 
+            if (window.speechSynthesis) { 
+                const u = new SpeechSynthesisUtterance(text); 
+                const voices = speechSynthesis.getVoices(); 
+                const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male')); 
+                if (brit) u.voice = brit; 
+                speechSynthesis.speak(u); 
+            } 
+        }
+
+        function speakRandomConfirm() {
+            const phrases = ["Right away, Sir.", "Processing.", "On it, Sir.", "Affirmative.", "Executing."];
+            speak(phrases[Math.floor(Math.random() * phrases.length)]);
+        }
 
         /* --- INIT --- */
-        // Runs immediately on page load to ensure graphics start
         window.onload = function() {
             resize();
             draw(); // Start loop immediately
@@ -300,8 +306,9 @@
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('/jarvis-uplink/sw.js', { scope: '/jarvis-uplink/' }).catch(e => console.log('SW Fail', e));
         };
 
-        async function initSystem() {
-            // Only handles permissions/overlay
+        async function initSystem(event) {
+            if(event) event.stopPropagation(); // CRITICAL FIX: Stop bubbling to handleInput
+            
             try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -339,6 +346,8 @@
                 isSystemActive = true;
                 speak("Welcome back, Jim. System secure.");
                 requestFullScreen();
+                
+                initSpeech();
 
             } catch(e) {
                 alert("Initialization Warning: " + e.message);
@@ -357,7 +366,6 @@
             canvas.height = height; 
             centerX = width / 2; 
             centerY = height / 2; 
-            // Scaled slightly smaller to ensure fit in portrait
             scale = Math.min(width, height) * (width < 768 ? 0.30 : 0.22); 
             const arCvs = document.getElementById('vision-ar-canvas'); 
             if(arCvs) { arCvs.width = width; arCvs.height = height; }
@@ -409,7 +417,6 @@
 
             context.setTransform(1,0,0,1,0,0); if(isBg) context.clearRect(0,0, width, height); context.translate(x, y);
             
-            // Outer Ring - BOLD
             context.save(); context.rotate(t * 0.0005); 
             for (let i = 0; i < 60; i++) { 
                 context.rotate(Math.PI * 2 / 60); context.beginPath(); 
@@ -418,20 +425,17 @@
             } 
             context.restore();
             
-            // Mid Arcs - THICKER
             context.save(); context.rotate(-t * 0.001); 
             context.lineWidth = r * 0.12; 
             context.strokeStyle = secondaryColor; 
             for(let j=0; j<3; j++) { context.beginPath(); context.arc(0, 0, r*0.85, 0, 1.2); context.stroke(); context.rotate(Math.PI*2/3); } 
             context.restore();
             
-            // Inner Circle - BOLD
             context.save(); context.rotate(t * 0.002); 
             context.strokeStyle = speedColor; context.lineWidth = 2; 
             context.beginPath(); context.arc(0,0, r*0.75, 0, Math.PI*2); context.stroke(); 
             context.restore();
             
-            // Core Pulse
             context.save();
             if(showMenuTrigger) {
                 context.rotate(t * 0.05); context.lineWidth = 4; context.strokeStyle = '#FFFFFF'; context.shadowColor = '#FFFFFF'; context.shadowBlur = 20; context.beginPath(); context.arc(0,0, r*0.65, 0, 2.0); context.stroke(); 
@@ -440,7 +444,6 @@
             }
             context.restore();
             
-            // Audio Ring
             context.save(); 
             context.rotate(t * 0.01); 
             context.lineWidth = 6 * pulseScale; 
@@ -455,10 +458,8 @@
 
         async function draw() {
             try {
-                // Ensure loop continues even if drawing fails
                 time++; 
                 animationFrame = requestAnimationFrame(draw);
-
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0,0, width, height);
 
@@ -505,9 +506,7 @@
                         }
                     }
                 }
-            } catch(e) {
-                console.error("Draw Error:", e);
-            }
+            } catch(e) { console.error("Draw Loop Error:", e); }
         }
 
         function drawHUDData(ctx, cx, cy, s) {
@@ -522,20 +521,17 @@
             ctx.rotate(-hudData.alpha * (Math.PI / 180));
             ctx.fillStyle = speedColor; ctx.font = `bold ${s*0.25}px Share Tech Mono`;
             ctx.globalAlpha = 0.8; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            const directions = ['N', 'E', 'S', 'W'];
-            for(let i=0; i<4; i++) {
-                ctx.save(); ctx.rotate(i * (Math.PI/2)); ctx.translate(0, -s * 1.45); ctx.rotate(-i * (Math.PI/2)); ctx.fillText(directions[i], 0, 0); ctx.restore();
-            }
+            ['N','E','S','W'].forEach((d,i) => {
+                ctx.save(); ctx.rotate(i*Math.PI/2); ctx.translate(0, -s*1.45); ctx.rotate(-i*Math.PI/2); ctx.fillText(d,0,0); ctx.restore();
+            });
             ctx.restore();
 
             // Horizon
-            ctx.save();
-            ctx.rotate(-hudData.gamma * (Math.PI / 180));
+            ctx.save(); ctx.rotate(-hudData.gamma * (Math.PI / 180));
             const pitchY = hudData.beta * 3;
             ctx.translate(0, pitchY);
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = speedColor;
             ctx.beginPath(); ctx.moveTo(-s*0.6, 0); ctx.lineTo(s*0.6, 0); ctx.stroke();
-            // Pitch Ladder
             ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
             for(let i=1; i<=2; i++) { 
                 ctx.beginPath(); ctx.moveTo(-s*0.2, -i*40); ctx.lineTo(s*0.2, -i*40); ctx.stroke();
@@ -550,12 +546,9 @@
             ctx.font = `bold ${s*0.15}px Share Tech Mono`; ctx.fillStyle = speedColor;
             ctx.fillText("KM/H", 0, s*0.45);
 
-            // Peripherals
-            ctx.setTransform(1,0,0,1,0,0);
             // Left Pitch
-            ctx.translate(20, cy); ctx.save();
-            ctx.rotate(-hudData.gamma * (Math.PI / 180));
-            ctx.translate(0, hudData.beta * 4);
+            ctx.setTransform(1,0,0,1,0,0); ctx.translate(20, cy); ctx.save();
+            ctx.rotate(-hudData.gamma * (Math.PI / 180)); ctx.translate(0, hudData.beta * 4);
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6;
             for(let i=-3; i<=3; i++) {
                 let w = (i===0) ? 30 : 15;
@@ -563,9 +556,9 @@
             }
             ctx.restore();
 
-            // Right Alt - SAFE CLIPPING FIX
+            // Right Alt - Safe Clipping
             ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(width - 20, cy);
-            ctx.save(); // IMPORTANT: Save state before clip
+            ctx.save();
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.globalAlpha = 0.6; ctx.textAlign = 'right'; ctx.font = "10px Share Tech Mono"; ctx.fillStyle = '#00E5FF';
             const altStep = 10; const pxPerStep = 30;
             const offsetAlt = hudData.alt % altStep;
@@ -578,34 +571,28 @@
                 if(i===0) { ctx.fillText(val, -10, y+3); ctx.fillStyle = speedColor; ctx.fillRect(-10, y-1, 20, 2); } 
                 else { ctx.fillStyle = 'rgba(255,255,255,0.5)'; if(val % 50 === 0) ctx.fillText(val, -10, y+3); }
             }
-            ctx.restore(); // IMPORTANT: Restore to remove clip
+            ctx.restore();
 
-            // Top Right Battery - Adjusted Position
+            // Battery - Safe Inset
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.globalAlpha = 0.8;
             ctx.font = `12px Share Tech Mono`;
             ctx.fillStyle = hudData.batt < 20 ? '#FF0000' : '#00E5FF';
             ctx.textAlign = 'right';
-            ctx.fillText(`${hudData.batt}%`, width - 60, 25); // Moved Inward
+            ctx.fillText(`${hudData.batt}%`, width - 60, 25); 
             ctx.fillRect(width - 50, 15, 30 * (hudData.batt/100), 10);
             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1; ctx.strokeRect(width-50, 15, 30, 10);
         }
 
         function drawMenuTrigger(ctx, cx, cy, s) {
             const btnY = s * 1.1; 
-            ctx.setTransform(1,0,0,1,0,0);
-            ctx.translate(cx, cy);
-            
-            ctx.fillStyle = "rgba(0, 20, 40, 0.9)";
-            ctx.strokeStyle = "#00E5FF";
-            ctx.lineWidth = 2;
-            
+            ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy);
+            ctx.fillStyle = "rgba(0, 20, 40, 0.9)"; ctx.strokeStyle = "#00E5FF"; ctx.lineWidth = 2;
             ctx.beginPath();
             const x = -40, y = btnY, w = 80, h = 40, r = 10;
             ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r); ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
-            
             ctx.fillStyle = "#FFFFFF"; ctx.font = "bold 14px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillText("MENU", 0, btnY + 20);
         }
@@ -613,42 +600,26 @@
         function drawMenu(ctx, cx, cy, s) {
             menuItems.forEach(item => {
                 const outerR = s * 1.6; const innerR = s * 1.35; 
-                const angleWidth = 0.25; 
-                const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
-                
+                const angleWidth = 0.25; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
                 ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy);
                 ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
-                
-                if (item.target === 'sub-toggle' && mediaSubMenuOpen) ctx.fillStyle = "rgba(0, 229, 255, 0.2)";
-                else ctx.fillStyle = "rgba(0, 10, 20, 0.95)"; 
-                
-                ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 2; 
-                ctx.fill(); ctx.stroke();
-                
+                ctx.fillStyle = (item.target === 'sub-toggle' && mediaSubMenuOpen) ? "rgba(0, 229, 255, 0.3)" : "rgba(0, 10, 20, 0.95)";
+                ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
                 const midR = (outerR + innerR) / 2; 
                 const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
-                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${s * 0.08}px Orbitron`; 
-                ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+                ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${s * 0.08}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
                 ctx.fillText(item.label, txtX, txtY); 
             });
-
             if (mediaSubMenuOpen) {
                 subMenuItems.forEach(item => {
                     const outerR = s * 1.3; const innerR = s * 1.05; 
-                    const angleWidth = 0.15; 
-                    const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
-
+                    const angleWidth = 0.15; const startAngle = item.angle - angleWidth; const endAngle = item.angle + angleWidth;
                     ctx.setTransform(1,0,0,1,0,0); ctx.translate(cx, cy);
                     ctx.beginPath(); ctx.arc(0, 0, outerR, startAngle, endAngle); ctx.arc(0, 0, innerR, endAngle, startAngle, true); ctx.closePath();
-                    
-                    ctx.fillStyle = "rgba(0, 40, 60, 0.9)"; 
-                    ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; 
-                    ctx.fill(); ctx.stroke();
-                    
+                    ctx.fillStyle = "rgba(0, 40, 60, 0.9)"; ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1; ctx.fill(); ctx.stroke();
                     const midR = (outerR + innerR) / 2; 
                     const txtX = Math.cos(item.angle) * midR; const txtY = Math.sin(item.angle) * midR;
-                    ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${s * 0.06}px Orbitron`; 
-                    ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+                    ctx.fillStyle = "#00E5FF"; ctx.font = `bold ${s * 0.06}px Orbitron`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
                     ctx.fillText(item.label, txtX, txtY); 
                 });
             }
@@ -699,6 +670,8 @@
         }
 
         function handleInput(e) { 
+            // Safe check for system active
+            if(!isSystemActive) return;
             if(visionActive || document.querySelector('.modal-window.active')) return; 
             
             const touchActive = e.type === 'touchstart'; 
@@ -710,7 +683,6 @@
             const dist = Math.sqrt(dx*dx + dy*dy); 
             const angle = Math.atan2(dy, dx); 
 
-            // 1. CHECK MENU BUTTON CLICK (Larger Hitbox)
             const btnY = scale * 1.1; 
             if (showMenuTrigger && Math.abs(dx) < 60 && Math.abs(dy - (btnY + 20)) < 50) {
                 e.preventDefault(); sfx('click');
@@ -718,8 +690,7 @@
                 return;
             }
 
-            // 2. CHECK REACTOR CORE CLICK (Mic Trigger) - WIDENED
-            if (dist < scale * 0.6) { // Increased from 0.4 for easier tapping
+            if (dist < scale * 0.6) {
                 e.preventDefault(); sfx('click');
                 showMenuTrigger = true; 
                 speakRandomConfirm();   
@@ -728,7 +699,6 @@
                 return;
             }
 
-            // 3. CHECK ARC MENU ITEMS
             if (menuOpen && dist > scale * 1.35 && dist < scale * 1.6) { 
                 menuItems.forEach(item => { 
                     let diff = angle - item.angle; 
@@ -743,7 +713,6 @@
                 }); 
             }
             
-            // 4. SUB-MENU
             if (menuOpen && mediaSubMenuOpen && dist > scale * 1.05 && dist < scale * 1.3) {
                 subMenuItems.forEach(item => {
                     let diff = angle - item.angle; 
@@ -759,6 +728,11 @@
         window.addEventListener('mousedown', handleInput);
 
         /* --- UTILS --- */
+        function initMediaDB() { const request = indexedDB.open(DB_NAME, DB_VERSION); request.onupgradeneeded = (e) => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { autoIncrement: true }); }; request.onsuccess = (e) => { db = e.target.result; loadTracksFromDB(); }; }
+        function saveTrackToDB(file) { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).add(file); }
+        function loadTracksFromDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readonly'); const r = t.objectStore(STORE_NAME).getAll(); r.onsuccess = () => { if (r.result && r.result.length > 0) { playlist = r.result; renderPlaylist(); speak(`Media Database loaded. ${playlist.length} tracks.`); } }; }
+        function clearMediaDB() { if (!db) return; const t = db.transaction([STORE_NAME], 'readwrite'); t.objectStore(STORE_NAME).clear(); playlist = []; renderPlaylist(); speak("Playlist cleared."); }
+        
         function handleMediaSelect(input) { const files = Array.from(input.files); if (files.length === 0) return; files.forEach(f => saveTrackToDB(f)); files.forEach(f => playlist.push(f)); renderPlaylist(); if (currentTrackIndex === -1) playTrack(0); }
         function renderPlaylist() { const container = document.getElementById('playlist-container'); container.innerHTML = ''; if(playlist.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 20px; color: #444; font-size: 12px;">PLAYLIST EMPTY</div>'; return; } playlist.forEach((track, index) => { const item = document.createElement('div'); item.className = 'track-item' + (index === currentTrackIndex ? ' active-track' : ''); item.onclick = () => playTrack(index); item.innerHTML = `<div class="track-icon"><i class="fas ${index === currentTrackIndex ? 'fa-volume-up' : 'fa-music'}"></i></div><div style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.name}</div>`; container.appendChild(item); }); }
         function playTrack(index) { if (index < 0 || index >= playlist.length) return; currentTrackIndex = index; const track = playlist[index]; const player = document.getElementById('audio-player'); player.src = URL.createObjectURL(track); player.play(); document.getElementById('now-playing').innerText = track.name.toUpperCase(); renderPlaylist(); const activeEl = document.querySelector('.active-track'); if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
@@ -788,8 +762,6 @@
         function openModal(id) { document.getElementById(id).classList.add('active'); sfx('click'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); sfx('close'); }
         function closeAllModals() { document.querySelectorAll('.modal-window').forEach(m => m.classList.remove('active')); }
-        function sfx(type) { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); if(type === 'startup') { osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } else { osc.frequency.value = 1200; gain.gain.value = 0.05; osc.type = 'square'; osc.start(); osc.stop(audioCtx.currentTime + 0.05); } }
-        function speak(text) { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); const voices = speechSynthesis.getVoices(); const brit = voices.find(v => v.name.includes('Great Britain') || v.name.includes('UK') && v.name.includes('Male')); if (brit) u.voice = brit; speechSynthesis.speak(u); } }
         
         function initSpeech() { 
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition; 
@@ -827,15 +799,8 @@
             };
         }
 
-        function speakRandomConfirm() {
-            const phrases = ["Right away, Sir.", "Processing.", "On it, Sir.", "Affirmative.", "Executing."];
-            speak(phrases[Math.floor(Math.random() * phrases.length)]);
-        }
-
         function toggleVoiceInput() { try { recognition.start(); } catch(e) {} }
         function saveApiKey(val) { systemConfig.apiKey = val.trim(); localStorage.setItem('jarvis_api_key', val); }
     </script>
 </body>
 </html>
-
-
